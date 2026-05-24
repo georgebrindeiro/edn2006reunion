@@ -1,0 +1,10 @@
+/* 
+  Uploadthing base styles
+  Import this in your globals.css or layout if you use UploadButton/UploadDropzone components.
+  Since we're using custom UI wrapping useUploadThing(), this file is kept minimal.
+*/
+
+/* Custom progress bar color for any ut-* classes */
+.ut-uploading\:cursor-not-allowed:disabled {
+  cursor: not-allowed;
+}
