@@ -1,8 +1,9 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
+import { authConfig } from "@/auth.config";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       name: "passphrase",
@@ -11,6 +12,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         passphrase: { label: "Passphrase", type: "password" },
       },
       async authorize(credentials) {
+        const { prisma } = await import("@/lib/prisma");
         const { email, passphrase } = credentials as {
           email: string;
           passphrase: string;
@@ -18,9 +20,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!email || !passphrase) return null;
 
-        // ── Admin check ──
         if (passphrase === process.env.ADMIN_PASSPHRASE) {
-          // Upsert admin user
           const admin = await prisma.user.upsert({
             where:  { email },
             update: { role: "ADMIN" },
@@ -29,10 +29,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return { id: admin.id, email: admin.email, role: admin.role };
         }
 
-        // ── Member check ──
         if (passphrase !== process.env.LOGIN_PASSPHRASE) return null;
 
-        // Upsert member — first login creates their record
         const user = await prisma.user.upsert({
           where:  { email },
           update: {},
@@ -43,27 +41,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id   = user.id;
-        token.role = (user as any).role;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id   = token.id as string;
-        (session.user as any).role = token.role;
-      }
-      return session;
-    },
-  },
-
-  pages: {
-    signIn: "/login",
-  },
-
-  session: { strategy: "jwt" },
 });
