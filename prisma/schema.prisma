@@ -1,0 +1,148 @@
+// prisma/schema.prisma
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Auth
+  email         String    @unique
+  role          Role      @default(MEMBER)
+
+  // Profile
+  fullName      String?
+  birthday      DateTime?
+  phone         String?
+  city          String?
+  state         String?
+  country       String?
+  studyPeriods  StudyPeriod[]
+
+  // Then & Now photos
+  photoThen     String?   // URL — old school photo
+  photoNow      String?   // URL — current photo
+
+  // RSVP
+  rsvp          Rsvp?
+
+  // Content contributions
+  memories      Memory[]
+  videoMessage  VideoMessage?
+
+  sessions      Session[]
+}
+
+model StudyPeriod {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  yearStart Int
+  yearEnd   Int
+
+  @@unique([userId, yearStart, yearEnd])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Rsvp {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isAttending     Boolean
+  guestAdults     Guest[]  @relation("AdultGuests")
+  guestChildren   Guest[]  @relation("ChildGuests")
+
+  // Food & drinks
+  joinsBarbecue   Boolean  @default(false)
+  drinksAlcohol   Boolean  @default(false)
+  drinkPreference DrinkPreference?
+
+  // Payment
+  paymentConfirmed Boolean @default(false)
+  paymentRef      String?
+}
+
+model Guest {
+  id          String  @id @default(cuid())
+  fullName    String
+  age         Int?    // only for children
+
+  // Relations — a guest is either an adult or child guest on an RSVP
+  adultRsvp   Rsvp?   @relation("AdultGuests", fields: [adultRsvpId], references: [id], onDelete: Cascade)
+  adultRsvpId String?
+  childRsvp   Rsvp?   @relation("ChildGuests", fields: [childRsvpId], references: [id], onDelete: Cascade)
+  childRsvpId String?
+}
+
+model Memory {
+  id        String      @id @default(cuid())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      MemoryType
+  title     String?
+  content   String?     // text for quotes/stories
+  mediaUrl  String?     // URL for photos/videos
+  approved  Boolean     @default(true)
+}
+
+model VideoMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoUrl  String
+  approved  Boolean  @default(true)
+}
+
+model InviteToken {
+  id        String   @id @default(cuid())
+  token     String   @unique @default(cuid())
+  createdAt DateTime @default(now())
+  active    Boolean  @default(true)
+}
+
+enum Role {
+  MEMBER
+  ADMIN
+}
+
+enum MemoryType {
+  PHOTO
+  VIDEO
+  QUOTE
+  STORY
+}
+
+enum DrinkPreference {
+  DRAFT_BEER
+  SPIRITS
+  BOTH
+}
