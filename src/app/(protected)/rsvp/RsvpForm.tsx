@@ -94,9 +94,10 @@ export function RsvpForm({ existingRsvp, event }: { existingRsvp?: ExistingRsvp;
   const [qrDataUrl,    setQrDataUrl]    = useState("");
   const [pixPayload,   setPixPayload]   = useState("");
   const [copied,       setCopied]       = useState(false);
-  const [loading,      setLoading]      = useState(false);
-  const [saved,        setSaved]        = useState(false);
-  const [error,        setError]        = useState("");
+  const [loading,       setLoading]       = useState(false);
+  const [saved,         setSaved]         = useState(false);
+  const [error,         setError]         = useState("");
+  const [showNoProofWarning, setShowNoProofWarning] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { startUpload, isUploading } = useUploadThing("paymentProof");
@@ -187,12 +188,8 @@ export function RsvpForm({ existingRsvp, event }: { existingRsvp?: ExistingRsvp;
     if (url) setProofUrl(url);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (isAttending === null) {
-      setError("Por favor, confirme se você vai comparecer.");
-      return;
-    }
+  async function submitRsvp() {
+    setShowNoProofWarning(false);
     setLoading(true);
     setError("");
 
@@ -217,6 +214,20 @@ export function RsvpForm({ existingRsvp, event }: { existingRsvp?: ExistingRsvp;
       setError(body.error ?? "Erro ao salvar. Tente novamente.");
     }
     setLoading(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (isAttending === null) {
+      setError("Por favor, confirme se você vai comparecer.");
+      return;
+    }
+    // Warn if attending but no proof attached
+    if (isAttending && !proofUrl) {
+      setShowNoProofWarning(true);
+      return;
+    }
+    await submitRsvp();
   }
 
   return (
@@ -520,6 +531,52 @@ export function RsvpForm({ existingRsvp, event }: { existingRsvp?: ExistingRsvp;
           {loading && <Loader2 size={16} className="animate-spin" />}
           {loading ? "Salvando..." : "Confirmar"}
         </button>
+      )}
+
+      {/* ── No-proof warning modal ───────────────────────────────── */}
+      {showNoProofWarning && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowNoProofWarning(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="text-2xl text-center">⚠️</div>
+            <h3 className="font-display text-edn-navy text-lg font-bold text-center">
+              Comprovante não anexado
+            </h3>
+            <p className="text-edn-gray text-sm font-body text-center leading-relaxed">
+              Você ainda não enviou o comprovante de pagamento. Tem certeza que quer confirmar sem ele?
+            </p>
+            <p className="text-edn-gray text-sm font-body text-center">
+              Se tiver dúvidas, fale com o George no{" "}
+              <a
+                href="https://wa.me/5561999847742"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-green-600 font-semibold underline"
+              >
+                WhatsApp
+              </a>
+              .
+            </p>
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowNoProofWarning(false)}
+                className="w-full py-3 rounded-xl bg-edn-navy text-white font-body font-semibold text-sm hover:bg-edn-navy/90 transition-colors"
+              >
+                Voltar e adicionar comprovante
+              </button>
+              <button
+                type="button"
+                onClick={submitRsvp}
+                className="w-full py-2.5 rounded-xl border border-edn-mist text-edn-gray font-body text-sm hover:text-edn-navy hover:border-edn-steel transition-colors"
+              >
+                Confirmar sem comprovante
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </form>
   );
