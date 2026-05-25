@@ -27,7 +27,15 @@ interface UserData {
 const inputClass = "w-full border border-edn-mist rounded-lg px-3 py-2.5 text-sm font-body text-edn-navy focus:outline-none focus:border-edn-steel placeholder:text-edn-gray/40";
 const labelClass = "block text-xs font-body font-medium text-edn-gray uppercase tracking-wider mb-1.5";
 
-export function ProfileForm({ user }: { user?: UserData }) {
+export function ProfileForm({
+  user,
+  apiEndpoint = "/api/profile",
+  onSaved,
+}: {
+  user?: UserData;
+  apiEndpoint?: string;
+  onSaved?: () => void;
+}) {
   const router = useRouter();
 
   const [fullName,  setFullName]  = useState(user?.fullName  ?? "");
@@ -86,13 +94,13 @@ export function ProfileForm({ user }: { user?: UserData }) {
     setError("");
     setSaved(false);
 
-    const res = await fetch("/api/profile", {
+    const res = await fetch(apiEndpoint, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fullName, birthday, phone, city, state, country, photoThen, photoNow, studyPeriods: periods }),
     });
 
-    if (res.ok) { setSaved(true); router.refresh(); }
+    if (res.ok) { setSaved(true); router.refresh(); onSaved?.(); }
     else {
       const body = await res.json().catch(() => ({}));
       setError(body.error ?? "Erro ao salvar.");
