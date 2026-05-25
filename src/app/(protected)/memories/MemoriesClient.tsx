@@ -42,7 +42,8 @@ export function MemoriesClient({ initialMemories, userEmail }: {
     const file = e.target.files?.[0];
     if (!file) return;
     const res = await startUpload([file]);
-    if (res?.[0]?.url) setMediaUrl(res[0].url);
+    const url = res?.[0]?.ufsUrl ?? res?.[0]?.url;
+    if (url) setMediaUrl(url);
   }
 
   async function handleSubmit(e: React.FormEvent) {

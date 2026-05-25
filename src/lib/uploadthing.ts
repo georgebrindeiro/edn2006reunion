@@ -3,59 +3,58 @@
 // Docs: https://docs.uploadthing.com/getting-started/appdir
 
 import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { getToken } from "next-auth/jwt";
-import type { NextRequest } from "next/server";
+import { auth } from "@/auth";
 
 const f = createUploadthing();
 
-async function getAuthUser(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET });
-  if (!token?.sub) throw new Error("Unauthorized");
-  return { id: token.sub as string };
+async function getAuthUser() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  return { id: session.user.id };
 }
 
 export const ourFileRouter = {
 
   profilePhoto: f({ image: { maxFileSize: "8MB", maxFileCount: 1 } })
-    .middleware(async ({ req }) => {
-      const user = await getAuthUser(req);
+    .middleware(async () => {
+      const user = await getAuthUser();
       return { userId: user.id };
     })
     .onUploadComplete(async ({ file }) => {
-      return { url: file.url };
+      return { ufsUrl: file.ufsUrl };
     }),
 
   memoryMedia: f({
     image: { maxFileSize: "16MB", maxFileCount: 1 },
     video: { maxFileSize: "256MB", maxFileCount: 1 },
   })
-    .middleware(async ({ req }) => {
-      const user = await getAuthUser(req);
+    .middleware(async () => {
+      const user = await getAuthUser();
       return { userId: user.id };
     })
     .onUploadComplete(async ({ file }) => {
-      return { url: file.url };
+      return { ufsUrl: file.ufsUrl };
     }),
 
   videoMessage: f({ video: { maxFileSize: "256MB", maxFileCount: 1 } })
-    .middleware(async ({ req }) => {
-      const user = await getAuthUser(req);
+    .middleware(async () => {
+      const user = await getAuthUser();
       return { userId: user.id };
     })
     .onUploadComplete(async ({ file }) => {
-      return { url: file.url };
+      return { ufsUrl: file.ufsUrl };
     }),
 
   paymentProof: f({
     image: { maxFileSize: "16MB", maxFileCount: 1 },
     pdf:   { maxFileSize: "16MB", maxFileCount: 1 },
   })
-    .middleware(async ({ req }) => {
-      const user = await getAuthUser(req);
+    .middleware(async () => {
+      const user = await getAuthUser();
       return { userId: user.id };
     })
     .onUploadComplete(async ({ file }) => {
-      return { url: file.url };
+      return { ufsUrl: file.ufsUrl };
     }),
 
 } satisfies FileRouter;

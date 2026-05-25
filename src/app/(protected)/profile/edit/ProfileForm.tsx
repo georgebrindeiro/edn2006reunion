@@ -66,8 +66,9 @@ export function ProfileForm({ user }: { user?: UserData }) {
     setError("");
     try {
       const res = await uploadPhoto([file]);
-      if (res?.[0]?.url) {
-        setter(res[0].url);
+      const url = res?.[0]?.ufsUrl ?? res?.[0]?.url;
+      if (url) {
+        setter(url);
       } else {
         setError("Upload falhou: nenhuma URL retornada. Tente novamente.");
       }

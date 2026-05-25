@@ -184,7 +184,8 @@ export function RsvpForm({ existingRsvp }: { existingRsvp?: ExistingRsvp }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const res = await startUpload([file]);
-    if (res?.[0]?.url) setProofUrl(res[0].url);
+    const url = res?.[0]?.ufsUrl ?? res?.[0]?.url;
+    if (url) setProofUrl(url);
   }
 
   async function handleSubmit(e: React.FormEvent) {

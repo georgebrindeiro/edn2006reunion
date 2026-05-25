@@ -101,12 +101,13 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
     const file = new File([videoBlob], "message.webm", { type: videoBlob.type });
     const res = await startUpload([file]);
 
-    if (!res?.[0]?.url) { setError("Erro no upload. Tente novamente."); return; }
+    const videoUrl = res?.[0]?.ufsUrl ?? res?.[0]?.url;
+    if (!videoUrl) { setError("Erro no upload. Tente novamente."); return; }
 
     const apiRes = await fetch("/api/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoUrl: res[0].url }),
+      body: JSON.stringify({ videoUrl }),
     });
 
     if (apiRes.ok) {
