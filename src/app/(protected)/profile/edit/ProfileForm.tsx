@@ -43,12 +43,13 @@ export function ProfileForm({ user }: { user?: UserData }) {
   const [periods,  setPeriods]  = useState<StudyPeriod[]>(
     user?.studyPeriods?.length ? user.studyPeriods : [{ yearStart: 1998, yearEnd: 2006 }]
   );
-  const [loading,  setLoading]  = useState(false);
-  const [saved,    setSaved]    = useState(false);
-  const [error,    setError]    = useState("");
+  const [loading,     setLoading]     = useState(false);
+  const [saved,       setSaved]       = useState(false);
+  const [error,       setError]       = useState("");
+  const [uploadingThen, setUploadingThen] = useState(false);
+  const [uploadingNow,  setUploadingNow]  = useState(false);
 
-  const { startUpload: uploadPhoto, isUploading: uploadingPhoto } =
-    useUploadThing("profilePhoto");
+  const { startUpload: uploadPhoto } = useUploadThing("profilePhoto");
 
   function addPeriod()           { setPeriods([...periods, { yearStart: 1998, yearEnd: 2006 }]) }
   function removePeriod(i: number) { setPeriods(periods.filter((_, idx) => idx !== i)) }
@@ -56,9 +57,26 @@ export function ProfileForm({ user }: { user?: UserData }) {
     setPeriods(periods.map((p, idx) => idx === i ? { ...p, [f]: v } : p));
   }
 
-  async function handlePhotoUpload(file: File, setter: (url: string) => void) {
-    const res = await uploadPhoto([file]);
-    if (res?.[0]?.url) setter(res[0].url);
+  async function handlePhotoUpload(
+    file: File,
+    setter: (url: string) => void,
+    setUploading: (v: boolean) => void,
+  ) {
+    setUploading(true);
+    setError("");
+    try {
+      const res = await uploadPhoto([file]);
+      if (res?.[0]?.url) {
+        setter(res[0].url);
+      } else {
+        setError("Upload falhou: nenhuma URL retornada. Tente novamente.");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Erro no upload: ${msg}`);
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -87,16 +105,16 @@ export function ProfileForm({ user }: { user?: UserData }) {
         <PhotoUploadField
           label="Foto na EDN (antes)"
           currentUrl={photoThen}
-          onUpload={(file) => handlePhotoUpload(file, setPhotoThen)}
-          isUploading={uploadingPhoto}
+          onUpload={(file) => handlePhotoUpload(file, setPhotoThen, setUploadingThen)}
+          isUploading={uploadingThen}
           emptyEmoji="🎒"
           emptyLabel="Foto antiga"
         />
         <PhotoUploadField
           label="Foto hoje (depois)"
           currentUrl={photoNow}
-          onUpload={(file) => handlePhotoUpload(file, setPhotoNow)}
-          isUploading={uploadingPhoto}
+          onUpload={(file) => handlePhotoUpload(file, setPhotoNow, setUploadingNow)}
+          isUploading={uploadingNow}
           emptyEmoji="📷"
           emptyLabel="Foto atual"
         />
@@ -170,7 +188,7 @@ export function ProfileForm({ user }: { user?: UserData }) {
         </div>
       )}
 
-      <button type="submit" disabled={loading || uploadingPhoto}
+      <button type="submit" disabled={loading || uploadingThen || uploadingNow}
         className="w-full bg-edn-navy text-white font-body font-semibold text-sm rounded-xl py-3.5 hover:bg-edn-navy-mid transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
         {loading && <Loader2 size={15} className="animate-spin" />}
         {loading ? "Salvando..." : "Salvar perfil"}
