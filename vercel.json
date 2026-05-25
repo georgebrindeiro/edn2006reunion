@@ -1,14 +1,5 @@
 {
   "framework": "nextjs",
   "buildCommand": "prisma generate && next build",
-  "installCommand": "npm install",
-  "env": {
-    "DATABASE_URL":        "@database-url",
-    "DIRECT_URL":          "@direct-url",
-    "AUTH_SECRET":         "@auth-secret",
-    "LOGIN_PASSPHRASE":    "@login-passphrase",
-    "ADMIN_PASSPHRASE":    "@admin-passphrase",
-    "UPLOADTHING_SECRET":  "@uploadthing-secret",
-    "UPLOADTHING_APP_ID":  "@uploadthing-app-id"
-  }
+  "installCommand": "npm install"
 }
