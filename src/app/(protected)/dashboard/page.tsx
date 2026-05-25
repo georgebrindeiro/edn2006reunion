@@ -93,7 +93,7 @@ export default async function DashboardPage() {
       <section className="bg-edn-navy rounded-2xl p-6 md:p-10 flex flex-col md:flex-row items-center gap-8 overflow-hidden relative">
         {/* Background figures watermark */}
         <div className="absolute right-0 top-0 bottom-0 opacity-5 flex items-center pr-6 pointer-events-none">
-          <EdnLogo size={220} variant="white" showText={false} />
+          <EdnLogo size={220} showText={false} />
         </div>
 
         <div className="flex-1 relative z-10">

@@ -17,7 +17,7 @@ export default function GlobalError({
   return (
     <html lang="pt-BR">
       <body className="min-h-screen bg-edn-navy flex flex-col items-center justify-center px-4 text-center">
-        <EdnLogo size={72} variant="white" showText={false} className="mb-8 opacity-60" />
+        <EdnLogo size={72} showText={false} className="mb-8 opacity-60" />
         <h1 className="font-display text-white text-2xl font-bold mb-2">
           Algo deu errado
         </h1>

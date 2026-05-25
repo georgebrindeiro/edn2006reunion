@@ -26,7 +26,7 @@ export function Nav({ isAdmin = false }: { isAdmin?: boolean }) {
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-3 shrink-0">
-          <EdnLogo size={32} variant="white" showText={false} />
+          <EdnLogo size={32} showText={false} />
           <span className="font-display text-white font-semibold text-sm hidden sm:block">
             EDN · 2006
           </span>

@@ -4,7 +4,7 @@ import { EdnLogo } from "@/components/logo/EdnLogo";
 export default function NotFound() {
   return (
     <main className="min-h-screen bg-edn-navy flex flex-col items-center justify-center px-4 text-center">
-      <EdnLogo size={80} variant="white" showText={false} className="mb-8 opacity-60" />
+      <EdnLogo size={80} showText={false} className="mb-8 opacity-60" />
 
       <h1 className="font-display text-white text-5xl font-bold mb-2">404</h1>
       <p className="font-display text-edn-mist text-xl mb-4">

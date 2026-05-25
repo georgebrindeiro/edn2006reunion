@@ -35,12 +35,9 @@ export function LoginForm() {
 
   return (
     <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-8 shadow-2xl">
-      <h2 className="font-display text-white text-xl font-semibold mb-1">
-        Entrar
+      <h2 className="font-display text-white text-xl font-semibold mb-4">
+        Login
       </h2>
-      <p className="text-edn-mist/70 text-sm font-body mb-6">
-        Use o e-mail e a senha compartilhada pelo organizador.
-      </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email */}
@@ -81,6 +78,10 @@ export function LoginForm() {
             </button>
           </div>
         </div>
+
+      <p className="text-edn-mist/70 text-sm font-body mb-6">
+        Você deve se cadastrar no link que foi compartilhado no WhatsApp!
+      </p>
 
         {/* Error */}
         {error && (

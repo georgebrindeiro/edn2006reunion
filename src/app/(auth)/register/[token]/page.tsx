@@ -16,7 +16,7 @@ export default async function RegisterPage({ params }: Props) {
       <div className="max-w-lg mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <EdnLogo size={72} variant="navy" showText={true} className="mx-auto mb-4" />
+          <EdnLogo size={72} showText={true} className="mx-auto mb-4" />
           <h1 className="font-display text-edn-navy text-2xl font-bold mb-1">
             Crie seu perfil
           </h1>

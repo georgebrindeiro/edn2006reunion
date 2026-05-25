@@ -4,7 +4,7 @@ import { EdnLogo } from "@/components/logo/EdnLogo";
 import { REUNION } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Entrar · EDN Reencontro 2006",
+  title: "Entrar · EDN Reunion 2006",
 };
 
 export default function LoginPage() {
@@ -21,47 +21,28 @@ export default function LoginPage() {
       <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-4 py-16">
 
         {/* Logo + title */}
-        <div className="flex flex-col items-center mb-10 animate-fade-up">
+        <div className="flex flex-col items-center mb-8 animate-fade-up">
           <EdnLogo size={100} variant="white" showText={true} />
         </div>
 
         {/* Reunion headline */}
         <div className="text-center mb-10 animate-fade-up animate-delay-200 opacity-0">
-          <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 mb-4">
+          
+          <h1 className="font-display text-white text-4xl md:text-5xl font-bold leading-tight mb-6">
+            EDN Class of {REUNION.classYear}
+          </h1>
+          <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-edn-steel-lt" />
             <span className="text-edn-mist text-xs font-body tracking-widest uppercase">
-              20 Anos · Turma de {REUNION.classYear}
+              20 Anos · Reunion
             </span>
           </div>
-          <h1 className="font-display text-white text-4xl md:text-5xl font-bold leading-tight mb-3">
-            Reencontro
-          </h1>
-          <p className="font-body text-edn-mist text-lg max-w-sm mx-auto leading-relaxed">
-            Vinte anos depois, os Cidadãos do Mundo se reúnem de novo.
-          </p>
         </div>
 
         {/* Login card */}
         <div className="w-full max-w-sm animate-fade-up animate-delay-400 opacity-0">
           <LoginForm />
         </div>
-
-        {/* School quote */}
-        <blockquote className="mt-12 text-center max-w-md animate-fade-up animate-delay-500 opacity-0">
-          <p className="font-display text-edn-mist/70 text-sm italic leading-relaxed">
-            &ldquo;{REUNION.schoolQuote}&rdquo;
-          </p>
-          <footer className="mt-2 text-edn-steel-lt/60 text-xs font-body tracking-widest uppercase">
-            — {REUNION.quoteAuthor}
-          </footer>
-        </blockquote>
-      </div>
-
-      {/* Footer */}
-      <div className="relative z-10 text-center pb-6">
-        <p className="text-edn-steel-lt/40 text-xs font-body">
-          Fundada em 01 de Setembro de 1980
-        </p>
       </div>
     </main>
   );
