@@ -34,6 +34,10 @@ function roundCoord(v: number) {
   return Math.round(v * 10) / 10;
 }
 
+function clusterLocationKey(cluster: Cluster): string {
+  return [cluster.city, cluster.country].filter(Boolean).join(", ");
+}
+
 function buildClusters(classmates: ClassmatePoint[]): Cluster[] {
   const map = new Map<string, Cluster>();
   for (const c of classmates) {
@@ -193,13 +197,14 @@ export function WorldMap({
         </Geographies>
 
         {clusters.map((cluster) => {
-          const isActive = activeCities.has(cluster.city);
+          const locKey   = clusterLocationKey(cluster);
+          const isActive = activeCities.has(locKey);
           const count    = cluster.members.length;
           return (
             <Marker
               key={cluster.key}
               coordinates={[cluster.longitude, cluster.latitude]}
-              onClick={() => onCityToggle(cluster.city)}
+              onClick={() => onCityToggle(locKey)}
             >
               {!isActive && (
                 <>
@@ -227,7 +232,7 @@ export function WorldMap({
 
         {/* Active overlays rendered last (on top) */}
         {clusters
-          .filter((c) => activeCities.has(c.city))
+          .filter((c) => activeCities.has(clusterLocationKey(c)))
           .map((cluster) => (
             <ConcentricOverlay key={`overlay-${cluster.key}`} cluster={cluster} />
           ))}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, GraduationCap, MapPin, Search, X } from "lucide-react";
 import { WorldMap } from "./WorldMap";
 import { ClassmatesGrid } from "./ClassmatesGrid";
+import { SCHOOL_YEAR_START, SCHOOL_YEAR_END } from "@/lib/utils";
 
 export interface FullClassmate {
   id: string;
@@ -19,6 +20,15 @@ export interface FullClassmate {
   photoNow: string | null;
   studyPeriods: { yearStart: number; yearEnd: number }[];
 }
+
+function locationKey(city: string | null, country: string | null): string {
+  return [city, country].filter(Boolean).join(", ");
+}
+
+const ALL_YEARS = Array.from(
+  { length: SCHOOL_YEAR_END - SCHOOL_YEAR_START + 1 },
+  (_, i) => SCHOOL_YEAR_START + i
+);
 
 // Compact dropdown with checkboxes
 function FilterDropdown({
@@ -68,7 +78,7 @@ function FilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-lg border border-edn-mist z-30 min-w-[180px] py-1.5">
+        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-lg border border-edn-mist z-30 min-w-[200px] py-1.5">
           {options.map((opt) => (
             <label
               key={opt}
@@ -89,6 +99,116 @@ function FilterDropdown({
   );
 }
 
+// Year-range picker: select a start and end year; matches anyone whose period overlaps
+function PeriodDropdown({
+  yearFrom,
+  yearTo,
+  onYearFromChange,
+  onYearToChange,
+}: {
+  yearFrom: number | null;
+  yearTo: number | null;
+  onYearFromChange: (y: number | null) => void;
+  onYearToChange: (y: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  const isActive = yearFrom !== null || yearTo !== null;
+
+  const buttonLabel =
+    yearFrom && yearTo
+      ? `${yearFrom}–${yearTo}`
+      : yearFrom
+      ? `desde ${yearFrom}`
+      : yearTo
+      ? `até ${yearTo}`
+      : "Período";
+
+  const selectClass =
+    "w-full text-xs font-body border border-edn-mist rounded-lg px-2 py-1.5 mt-1 bg-white focus:outline-none focus:border-edn-steel";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 text-xs font-body px-3 py-1.5 rounded-full transition-colors whitespace-nowrap ${
+          isActive
+            ? "bg-edn-navy text-white"
+            : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
+        }`}
+      >
+        <GraduationCap size={12} />
+        {buttonLabel}
+        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-lg border border-edn-mist z-30 p-3 min-w-[220px]">
+          <p className="text-[10px] font-body text-edn-gray uppercase tracking-wider mb-2">
+            Estudou na EDN entre…
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-body text-edn-steel">De</label>
+              <select
+                value={yearFrom ?? ""}
+                onChange={(e) =>
+                  onYearFromChange(e.target.value ? parseInt(e.target.value) : null)
+                }
+                className={selectClass}
+              >
+                <option value="">Qualquer</option>
+                {ALL_YEARS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-body text-edn-steel">Até</label>
+              <select
+                value={yearTo ?? ""}
+                onChange={(e) =>
+                  onYearToChange(e.target.value ? parseInt(e.target.value) : null)
+                }
+                className={selectClass}
+              >
+                <option value="">Qualquer</option>
+                {ALL_YEARS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {isActive && (
+            <button
+              onClick={() => {
+                onYearFromChange(null);
+                onYearToChange(null);
+              }}
+              className="mt-2 text-[10px] text-edn-steel hover:text-edn-navy font-body flex items-center gap-1 transition-colors"
+            >
+              <X size={10} /> Limpar período
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ClassmatesView({
   classmates,
   isAdmin,
@@ -98,59 +218,57 @@ export function ClassmatesView({
 }) {
   const [name, setName] = useState("");
   const [locationFilters, setLocationFilters] = useState<Set<string>>(new Set());
-  const [yearFilters, setYearFilters] = useState<Set<string>>(new Set());
+  const [yearFrom, setYearFrom] = useState<number | null>(null);
+  const [yearTo, setYearTo] = useState<number | null>(null);
 
-  const cities = useMemo(
-    () =>
-      [...new Set(classmates.map((c) => c.city).filter((c): c is string => !!c))].sort(
-        (a, b) => a.localeCompare(b, "pt-BR")
-      ),
-    [classmates]
-  );
-
-  const yearRanges = useMemo(
+  // Combined "City, Country" strings for the dropdown
+  const locations = useMemo(
     () =>
       [
         ...new Set(
-          classmates.flatMap((c) =>
-            c.studyPeriods.map((p) => `${p.yearStart}–${p.yearEnd}`)
-          )
+          classmates
+            .filter((c) => c.city)
+            .map((c) => locationKey(c.city, c.country))
         ),
-      ].sort(),
+      ].sort((a, b) => a.localeCompare(b, "pt-BR")),
     [classmates]
   );
 
-  function toggleLocation(city: string) {
+  function toggleLocation(key: string) {
     setLocationFilters((prev) => {
       const next = new Set(prev);
-      if (next.has(city)) next.delete(city);
-      else next.add(city);
-      return next;
-    });
-  }
-
-  function toggleYear(yr: string) {
-    setYearFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(yr)) next.delete(yr);
-      else next.add(yr);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
   const filtered = useMemo(() => {
-    const q = name.trim().toLowerCase();
+    const q    = name.trim().toLowerCase();
+    const from = yearFrom ?? SCHOOL_YEAR_START;
+    const to   = yearTo   ?? SCHOOL_YEAR_END;
+
     return classmates.filter((c) => {
       if (q && !c.fullName?.toLowerCase().includes(q)) return false;
-      if (locationFilters.size > 0 && (!c.city || !locationFilters.has(c.city))) return false;
-      if (yearFilters.size > 0) {
-        if (!c.studyPeriods.some((p) => yearFilters.has(`${p.yearStart}–${p.yearEnd}`))) return false;
+
+      if (locationFilters.size > 0) {
+        if (!locationFilters.has(locationKey(c.city, c.country))) return false;
       }
+
+      if (yearFrom !== null || yearTo !== null) {
+        // Overlap: classmate's period overlaps [from, to]
+        const match = c.studyPeriods.some(
+          (p) => p.yearStart <= to && p.yearEnd >= from
+        );
+        if (!match) return false;
+      }
+
       return true;
     });
-  }, [classmates, name, locationFilters, yearFilters]);
+  }, [classmates, name, locationFilters, yearFrom, yearTo]);
 
-  const hasFilters = name.trim() !== "" || locationFilters.size > 0 || yearFilters.size > 0;
+  const hasFilters =
+    name.trim() !== "" || locationFilters.size > 0 || yearFrom !== null || yearTo !== null;
 
   return (
     <div className="space-y-4">
@@ -164,9 +282,11 @@ export function ClassmatesView({
 
       {/* Streamlined filter row */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Name search */}
         <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-edn-gray/40 pointer-events-none" />
+          <Search
+            size={13}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-edn-gray/40 pointer-events-none"
+          />
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -178,27 +298,25 @@ export function ClassmatesView({
         <FilterDropdown
           icon={<MapPin size={12} />}
           label="Cidade"
-          options={cities}
+          options={locations}
           selected={locationFilters}
           onToggle={toggleLocation}
         />
 
-        {yearRanges.length > 1 && (
-          <FilterDropdown
-            icon={<GraduationCap size={12} />}
-            label="Período"
-            options={yearRanges}
-            selected={yearFilters}
-            onToggle={toggleYear}
-          />
-        )}
+        <PeriodDropdown
+          yearFrom={yearFrom}
+          yearTo={yearTo}
+          onYearFromChange={setYearFrom}
+          onYearToChange={setYearTo}
+        />
 
         {hasFilters && (
           <button
             onClick={() => {
               setName("");
               setLocationFilters(new Set());
-              setYearFilters(new Set());
+              setYearFrom(null);
+              setYearTo(null);
             }}
             className="flex items-center gap-1 text-xs text-edn-gray/50 hover:text-edn-gray font-body transition-colors"
           >
@@ -213,7 +331,6 @@ export function ClassmatesView({
         )}
       </div>
 
-      {/* Cards */}
       {filtered.length > 0 ? (
         <ClassmatesGrid classmates={filtered} isAdmin={isAdmin} />
       ) : (
