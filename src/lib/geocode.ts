@@ -2,8 +2,9 @@ export async function geocodeCity(
   city: string,
   country: string | null | undefined,
 ): Promise<{ lat: number; lng: number } | null> {
-  const params = new URLSearchParams({ city, format: "json", limit: "1" });
-  if (country) params.set("country", country);
+  // Free-form query is more robust than structured params for Nominatim
+  const q = [city, country].filter(Boolean).join(", ");
+  const params = new URLSearchParams({ q, format: "json", limit: "1" });
 
   try {
     const res = await fetch(

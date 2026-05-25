@@ -39,4 +39,9 @@ declare module "react-simple-maps" {
     zoom?: number;
     children?: ReactNode;
   }): JSX.Element;
+
+  export function useMapContext(): {
+    projection: (coords: [number, number]) => [number, number] | null;
+    path: unknown;
+  };
 }

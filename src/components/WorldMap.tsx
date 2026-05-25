@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+  useMapContext,
+} from "react-simple-maps";
 import { X } from "lucide-react";
 
 const GEO_URL =
@@ -26,19 +32,24 @@ interface Cluster {
   members: ClassmatePoint[];
 }
 
+// Round to 1 decimal place (~11 km) so slight Nominatim variation still clusters
+function roundCoord(v: number) {
+  return Math.round(v * 10) / 10;
+}
+
 function buildClusters(classmates: ClassmatePoint[]): Cluster[] {
   const map = new Map<string, Cluster>();
   for (const c of classmates) {
     if (c.latitude == null || c.longitude == null) continue;
-    const key = `${c.city}|${c.country}`;
+    const key = `${roundCoord(c.latitude)},${roundCoord(c.longitude)}`;
     if (!map.has(key)) {
       map.set(key, {
         key,
-        city: c.city ?? "Desconhecida",
-        country: c.country ?? "",
-        latitude: c.latitude,
+        city:      c.city    ?? "Desconhecida",
+        country:   c.country ?? "",
+        latitude:  c.latitude,
         longitude: c.longitude,
-        members: [],
+        members:   [],
       });
     }
     map.get(key)!.members.push(c);
@@ -50,22 +61,20 @@ function getInitials(name: string | null): string {
   if (!name) return "?";
   return name
     .split(" ")
+    .filter(Boolean)
     .map((n) => n[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
 }
 
-// Place avatars in concentric rings. Ring sizes are computed from circumference / avatar footprint.
-const AVATAR_R = 12; // radius of each avatar circle in px
-const AVATAR_SPACING = 4; // extra gap between avatars
-
-const RINGS = [40, 70, 100, 130, 160].map((r) => ({
+const AVATAR_R = 14;
+const RINGS = [50, 85, 120, 160, 200].map((r) => ({
   r,
-  capacity: Math.floor((2 * Math.PI * r) / (2 * AVATAR_R + AVATAR_SPACING)),
+  capacity: Math.floor((2 * Math.PI * r) / (2 * AVATAR_R + 5)),
 }));
 
-function getAvatarPositions(count: number) {
+function getAvatarPositions(count: number): { x: number; y: number }[] {
   const positions: { x: number; y: number }[] = [];
   let remaining = count;
   for (const ring of RINGS) {
@@ -83,134 +92,112 @@ function getAvatarPositions(count: number) {
   return positions;
 }
 
-function outerRingUsed(count: number): number {
-  let remaining = count;
-  let last = 0;
-  for (const ring of RINGS) {
-    if (remaining <= 0) break;
-    remaining -= ring.capacity;
-    last = ring.r;
-  }
-  return last;
-}
-
-function ConcentricView({ members }: { members: ClassmatePoint[] }) {
-  const positions = getAvatarPositions(members.length);
-  const maxR = outerRingUsed(members.length) || 40;
-  const pad = AVATAR_R + 6;
-  const half = maxR + pad;
-  const size = half * 2;
-
-  // Show ring guidelines only for rings that are actually used
-  const usedRings: number[] = [];
-  let rem = members.length;
+function getUsedRings(count: number): number[] {
+  const used: number[] = [];
+  let rem = count;
   for (const ring of RINGS) {
     if (rem <= 0) break;
-    usedRings.push(ring.r);
+    used.push(ring.r);
     rem -= ring.capacity;
   }
+  return used;
+}
+
+// Renders inside the ComposableMap SVG; positions itself using the map projection
+function ConcentricOverlay({ cluster }: { cluster: Cluster }) {
+  const { projection } = useMapContext();
+  const coords = projection([cluster.longitude, cluster.latitude]);
+  if (!coords) return null;
+  const [cx, cy] = coords;
+
+  const count     = cluster.members.length;
+  const positions = getAvatarPositions(count);
+  const usedRings = getUsedRings(count);
+  const outerR    = (usedRings[usedRings.length - 1] ?? 30) + AVATAR_R + 6;
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <svg
-        width={size}
-        height={size}
-        viewBox={`${-half} ${-half} ${size} ${size}`}
-        className="overflow-visible"
-      >
-        {/* Dashed ring guides */}
-        {usedRings.map((r) => (
-          <circle
-            key={r}
-            cx={0}
-            cy={0}
-            r={r}
-            fill="none"
-            stroke="#d5e4f0"
-            strokeWidth={1}
-            strokeDasharray="3 3"
-          />
-        ))}
+    <g transform={`translate(${cx}, ${cy})`} style={{ pointerEvents: "none" }}>
+      {/* Frosted background disc */}
+      <circle cx={0} cy={0} r={outerR} fill="rgba(255,255,255,0.72)" />
 
-        {/* Centre pin */}
-        <circle cx={0} cy={0} r={7} fill="#1a2744" />
-        <circle cx={0} cy={0} r={7} fill="none" stroke="white" strokeWidth={1.5} />
+      {/* Dashed ring guides */}
+      {usedRings.map((r) => (
+        <circle
+          key={r}
+          cx={0} cy={0} r={r}
+          fill="none"
+          stroke="#c8d8e8"
+          strokeWidth={1}
+          strokeDasharray="4 4"
+        />
+      ))}
 
-        {/* Avatar circles */}
-        {members.map((c, i) => {
-          if (i >= positions.length) return null;
-          const { x, y } = positions[i];
-          return (
-            <g key={c.id} transform={`translate(${x},${y})`}>
-              <defs>
-                <clipPath id={`wm-clip-${c.id}`}>
-                  <circle cx={0} cy={0} r={AVATAR_R} />
-                </clipPath>
-              </defs>
-              {c.photoNow ? (
-                <>
-                  <image
-                    href={c.photoNow}
-                    x={-AVATAR_R}
-                    y={-AVATAR_R}
-                    width={AVATAR_R * 2}
-                    height={AVATAR_R * 2}
-                    clipPath={`url(#wm-clip-${c.id})`}
-                    preserveAspectRatio="xMidYMid slice"
-                  />
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={AVATAR_R}
-                    fill="none"
-                    stroke="white"
-                    strokeWidth={1.5}
-                  />
-                </>
-              ) : (
-                <>
-                  <circle cx={0} cy={0} r={AVATAR_R} fill="#8aa0b8" />
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={AVATAR_R}
-                    fill="none"
-                    stroke="white"
-                    strokeWidth={1.5}
-                  />
-                  <text
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    style={{
-                      fontSize: "8px",
-                      fill: "white",
-                      fontWeight: "600",
-                      fontFamily: "sans-serif",
-                      pointerEvents: "none",
-                    }}
-                  >
-                    {getInitials(c.fullName)}
-                  </text>
-                </>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+      {/* Avatar circles */}
+      {cluster.members.map((c, i) => {
+        if (i >= positions.length) return null;
+        const { x, y } = positions[i];
+        return (
+          <g key={c.id} transform={`translate(${x},${y})`}>
+            <defs>
+              <clipPath id={`wm-clip-${c.id}`}>
+                <circle cx={0} cy={0} r={AVATAR_R} />
+              </clipPath>
+            </defs>
+            {c.photoNow ? (
+              <>
+                <image
+                  href={c.photoNow}
+                  x={-AVATAR_R} y={-AVATAR_R}
+                  width={AVATAR_R * 2} height={AVATAR_R * 2}
+                  clipPath={`url(#wm-clip-${c.id})`}
+                  preserveAspectRatio="xMidYMid slice"
+                />
+                <circle cx={0} cy={0} r={AVATAR_R} fill="none" stroke="white" strokeWidth={1.5} />
+              </>
+            ) : (
+              <>
+                <circle cx={0} cy={0} r={AVATAR_R} fill="#8aa0b8" />
+                <circle cx={0} cy={0} r={AVATAR_R} fill="none" stroke="white" strokeWidth={1.5} />
+                <text
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  style={{
+                    fontSize: "8px",
+                    fill: "white",
+                    fontWeight: "600",
+                    fontFamily: "sans-serif",
+                  }}
+                >
+                  {getInitials(c.fullName)}
+                </text>
+              </>
+            )}
+          </g>
+        );
+      })}
 
-      {/* Name list */}
-      <div className="w-full max-h-40 overflow-y-auto grid grid-cols-2 gap-x-3 gap-y-0.5 px-1">
-        {members.map((c) => (
-          <p
-            key={c.id}
-            className="text-xs font-body text-edn-navy leading-5 min-w-0"
-            style={{ wordBreak: "break-word" }}
-          >
-            {c.fullName}
-          </p>
-        ))}
-      </div>
-    </div>
+      {/* Pin re-rendered on top of the overlay */}
+      <circle
+        r={count === 1 ? 6 : 9}
+        fill="#2a3d6a"
+        stroke="white"
+        strokeWidth={1.5}
+      />
+      {count > 1 && (
+        <text
+          textAnchor="middle"
+          dominantBaseline="middle"
+          style={{
+            fontSize: count >= 10 ? "5px" : "6px",
+            fill: "white",
+            fontWeight: "700",
+            fontFamily: "sans-serif",
+          }}
+        >
+          {count}
+        </text>
+      )}
+    </g>
   );
 }
 
@@ -222,7 +209,7 @@ export function WorldMap({
   total: number;
 }) {
   const [active, setActive] = useState<Cluster | null>(null);
-  const clusters = buildClusters(classmates);
+  const clusters    = buildClusters(classmates);
   const withLocation = classmates.filter((c) => c.latitude != null).length;
 
   function toggleCluster(cluster: Cluster) {
@@ -231,10 +218,11 @@ export function WorldMap({
 
   return (
     <div className="space-y-3">
-      <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+      {/* Map — no overflow-hidden so concentric overlay can extend past edges */}
+      <div className="bg-white rounded-2xl shadow-sm" style={{ overflow: "visible" }}>
         <ComposableMap
           projectionConfig={{ scale: 140, center: [15, 10] }}
-          style={{ width: "100%", height: "auto" }}
+          style={{ width: "100%", height: "auto", overflow: "visible" } as React.CSSProperties}
         >
           <Geographies geography={GEO_URL}>
             {({ geographies }) =>
@@ -246,17 +234,18 @@ export function WorldMap({
                   stroke="#c8d8e8"
                   strokeWidth={0.5}
                   style={{
-                    default: { outline: "none" },
-                    hover: { outline: "none", fill: "#dbeaf5" },
-                    pressed: { outline: "none" },
+                    default:  { outline: "none" },
+                    hover:    { outline: "none", fill: "#dbeaf5" },
+                    pressed:  { outline: "none" },
                   }}
                 />
               ))
             }
           </Geographies>
 
+          {/* Inactive pins */}
           {clusters.map((cluster) => {
-            const isActive = active?.key === cluster.key;
+            if (active?.key === cluster.key) return null;
             const count = cluster.members.length;
             return (
               <Marker
@@ -264,27 +253,13 @@ export function WorldMap({
                 coordinates={[cluster.longitude, cluster.latitude]}
                 onClick={() => toggleCluster(cluster)}
               >
-                {/* Outer glow ring when active */}
-                {isActive && (
-                  <circle
-                    r={count === 1 ? 12 : 14}
-                    fill="#1a2744"
-                    fillOpacity={0.15}
-                    style={{ pointerEvents: "none" }}
-                  />
-                )}
-
-                {/* Pin body */}
                 <circle
                   r={count === 1 ? 6 : 9}
-                  fill={isActive ? "#2a3d6a" : "#1a2744"}
+                  fill="#1a2744"
                   stroke="white"
                   strokeWidth={1.5}
                   className="cursor-pointer"
-                  style={{ transition: "fill 0.15s" }}
                 />
-
-                {/* Count label */}
                 {count > 1 && (
                   <text
                     textAnchor="middle"
@@ -303,6 +278,23 @@ export function WorldMap({
               </Marker>
             );
           })}
+
+          {/* Active cluster — concentric overlay rendered last so it sits on top */}
+          {active && <ConcentricOverlay cluster={active} />}
+
+          {/* Invisible clickable area on the active pin so tapping it again closes */}
+          {active && (
+            <Marker
+              coordinates={[active.longitude, active.latitude]}
+              onClick={() => setActive(null)}
+            >
+              <circle
+                r={active.members.length === 1 ? 10 : 12}
+                fill="transparent"
+                className="cursor-pointer"
+              />
+            </Marker>
+          )}
         </ComposableMap>
 
         {withLocation < total && (
@@ -315,10 +307,10 @@ export function WorldMap({
         )}
       </div>
 
-      {/* Expanded cluster panel */}
+      {/* Names panel shown below map when a cluster is active */}
       {active && (
         <div className="bg-white rounded-2xl shadow-sm p-4">
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start justify-between mb-3">
             <div>
               <h3 className="font-body font-semibold text-edn-navy text-sm">
                 {active.city}
@@ -332,12 +324,21 @@ export function WorldMap({
             <button
               onClick={() => setActive(null)}
               className="p-1 text-edn-gray hover:text-edn-navy rounded-lg transition-colors shrink-0"
-              aria-label="Fechar"
             >
               <X size={16} />
             </button>
           </div>
-          <ConcentricView members={active.members} />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+            {active.members.map((c) => (
+              <p
+                key={c.id}
+                className="text-xs font-body text-edn-navy leading-5"
+                style={{ wordBreak: "break-word" }}
+              >
+                {c.fullName}
+              </p>
+            ))}
+          </div>
         </div>
       )}
     </div>

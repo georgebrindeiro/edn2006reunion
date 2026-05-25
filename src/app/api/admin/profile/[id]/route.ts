@@ -35,8 +35,17 @@ export async function POST(
 
   let geoData: { latitude?: number; longitude?: number } = {};
   if (needsGeocode) {
-    const coords = await geocodeCity(city, country);
-    if (coords) geoData = { latitude: coords.lat, longitude: coords.lng };
+    // Reuse coords from another user in the same city to avoid Nominatim rate limits
+    const existing = await prisma.user.findFirst({
+      where: { city, country: country ?? null, latitude: { not: null }, NOT: { id } },
+      select: { latitude: true, longitude: true },
+    });
+    if (existing?.latitude != null) {
+      geoData = { latitude: existing.latitude, longitude: existing.longitude! };
+    } else {
+      const coords = await geocodeCity(city, country);
+      if (coords) geoData = { latitude: coords.lat, longitude: coords.lng };
+    }
   }
 
   const user = await prisma.user.update({
