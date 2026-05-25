@@ -12,16 +12,16 @@ export default async function RegisterPage({ params }: Props) {
   if (!valid) notFound();
 
   return (
-    <main className="min-h-screen bg-edn-cloud py-12 px-4">
+    <main className="min-h-screen bg-edn-navy/85 py-12 px-4">
       <div className="max-w-lg mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
           <EdnLogo size={72} showText={true} className="mx-auto mb-4" />
-          <h1 className="font-display text-edn-navy text-2xl font-bold mb-1">
+          <h1 className="font-display text-edn-white text-2xl font-bold mb-2">
             Crie seu perfil
           </h1>
-          <p className="text-edn-gray font-body text-sm">
-            Preencha seus dados para fazer parte do reencontro da turma de 2006.
+          <p className="text-edn-white font-body text-sm">
+            Preencha suas informações para sabermos quem você é.
           </p>
         </div>
 
