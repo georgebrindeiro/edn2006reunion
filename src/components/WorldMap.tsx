@@ -137,7 +137,8 @@ function ConcentricOverlay({ cluster }: { cluster: Cluster }) {
         if (i >= positions.length) return null;
         const { x, y } = positions[i];
         return (
-          <g key={c.id} transform={`translate(${x},${y})`}>
+          <g key={c.id} transform={`translate(${x},${y})`} style={{ pointerEvents: "all", cursor: "default" }}>
+            <title>{c.fullName ?? "?"}</title>
             <defs>
               <clipPath id={`wm-clip-${c.id}`}>
                 <circle cx={0} cy={0} r={AVATAR_R} />
@@ -221,7 +222,9 @@ export function WorldMap({
       {/* Map — no overflow-hidden so concentric overlay can extend past edges */}
       <div className="bg-white rounded-2xl shadow-sm" style={{ overflow: "visible" }}>
         <ComposableMap
-          projectionConfig={{ scale: 140, center: [15, 10] }}
+          width={800}
+          height={430}
+          projectionConfig={{ scale: 148, center: [15, 5] }}
           style={{ width: "100%", height: "auto", overflow: "visible" } as React.CSSProperties}
         >
           <Geographies geography={GEO_URL}>

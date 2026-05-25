@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { WorldMap } from "@/components/WorldMap";
-import { ClassmatesGrid } from "@/components/ClassmatesGrid";
+import { ClassmatesView } from "@/components/ClassmatesView";
 
 export default async function ClassmatesPage() {
   const session = await auth();
@@ -26,14 +25,13 @@ export default async function ClassmatesPage() {
     orderBy: { fullName: "asc" },
   });
 
-  // Serialize dates so they pass through the server→client boundary
   const classmatesSerialized = classmates.map((c) => ({
     ...c,
     birthday: c.birthday ? c.birthday.toISOString().split("T")[0] : null,
   }));
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <p className="text-edn-steel text-xs font-body uppercase tracking-widest mb-1">
           EDN Class 2006
@@ -46,25 +44,7 @@ export default async function ClassmatesPage() {
         </p>
       </div>
 
-      {/* World map */}
-      <section>
-        <h2 className="font-body font-semibold text-edn-navy text-sm mb-3">
-          Onde estão agora
-        </h2>
-        <WorldMap
-          classmates={classmates}
-          total={classmates.length}
-        />
-      </section>
-
-      {/* Classmate cards */}
-      <ClassmatesGrid classmates={classmatesSerialized} isAdmin={isAdmin} />
-
-      {classmates.length === 0 && (
-        <div className="text-center py-16 text-edn-gray font-body text-sm">
-          Nenhum colega cadastrado ainda.
-        </div>
-      )}
+      <ClassmatesView classmates={classmatesSerialized} isAdmin={isAdmin} />
     </div>
   );
 }

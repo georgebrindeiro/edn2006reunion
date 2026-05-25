@@ -6,6 +6,8 @@ declare module "react-simple-maps" {
   }
 
   export function ComposableMap(props: {
+    width?: number;
+    height?: number;
     projectionConfig?: { scale?: number; center?: [number, number]; rotate?: [number, number, number] };
     style?: React.CSSProperties;
     children?: ReactNode;
