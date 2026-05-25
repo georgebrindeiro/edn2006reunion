@@ -3,83 +3,46 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   X, ChevronLeft, ChevronRight, Tag, GripVertical, Check, Loader2,
-  UserPlus,
+  UserPlus, Users, ChevronDown, Trash2,
 } from "lucide-react";
 import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  SortableContext,
-  useSortable,
-  arrayMove,
-  rectSortingStrategy,
+  SortableContext, useSortable, arrayMove, rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { MEMORY_ERAS, type MemoryEra } from "@/lib/memory-eras";
 import { CommentThread } from "@/components/CommentThread";
 
-// Fixed era sort order — uncategorized goes after all eras
 const ERA_ORDER: Record<string, number> = {
-  KINDERGARTEN:  0,
-  LOWER_SCHOOL:  1,
-  MIDDLE_SCHOOL: 2,
-  HIGH_SCHOOL:   3,
-  ADULT_LIFE:    4,
+  KINDERGARTEN: 0, LOWER_SCHOOL: 1, MIDDLE_SCHOOL: 2, HIGH_SCHOOL: 3, ADULT_LIFE: 4,
 };
-
-function eraIndex(era: string | null): number {
-  return era ? (ERA_ORDER[era] ?? 5) : 5;
-}
+function eraIndex(era: string | null) { return era ? (ERA_ORDER[era] ?? 5) : 5; }
 
 function sortedAll(photos: Photo[]): Photo[] {
   return [...photos].sort((a, b) => {
     const eraD = eraIndex(a.era) - eraIndex(b.era);
     if (eraD !== 0) return eraD;
-    const aO = a.sortOrder ?? Infinity;
-    const bO = b.sortOrder ?? Infinity;
+    const aO = a.sortOrder ?? Infinity, bO = b.sortOrder ?? Infinity;
     if (aO !== bO) return aO - bO;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
-
 function sortedWithin(photos: Photo[]): Photo[] {
   return [...photos].sort((a, b) => {
-    const aO = a.sortOrder ?? Infinity;
-    const bO = b.sortOrder ?? Infinity;
+    const aO = a.sortOrder ?? Infinity, bO = b.sortOrder ?? Infinity;
     if (aO !== bO) return aO - bO;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
 
-interface TaggedUser {
-  id:       string;
-  userId:   string;
-  fullName: string | null;
-  photoNow: string | null;
-}
-
+interface TaggedUser { id: string; userId: string; fullName: string | null; photoNow: string | null; }
 interface Photo {
-  id:        string;
-  mediaUrl:  string;
-  title:     string | null;
-  era:       string | null;
-  sortOrder: number | null;
-  createdAt: string;
-  userName:  string | null;
-  tags:      TaggedUser[];
+  id: string; mediaUrl: string; title: string | null; era: string | null;
+  sortOrder: number | null; createdAt: string; userName: string | null; tags: TaggedUser[];
 }
-
-interface Classmate {
-  id:       string;
-  fullName: string;
-  photoNow: string | null;
-}
-
+interface Classmate { id: string; fullName: string; photoNow: string | null; }
 type EraFilterValue = MemoryEra | "ALL" | "NONE";
 
 function getInitials(name: string | null) {
@@ -87,49 +50,106 @@ function getInitials(name: string | null) {
   return name.split(" ").filter(Boolean).map((n) => n[0]).slice(0, 2).join("").toUpperCase();
 }
 
-// ── Sortable tile ────────────────────────────────────────────────────────────
-function SortableTile({ photo }: { photo: Photo }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: photo.id });
+// ── Person multi-select dropdown ─────────────────────────────────────────────
+function PersonFilterDropdown({
+  people,
+  selected,
+  onToggle,
+  photos,
+}: {
+  people: TaggedUser[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  photos: Photo[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function outside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
+  }, []);
+
+  if (people.length === 0) return null;
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`relative group rounded-xl overflow-hidden bg-edn-cloud aspect-square ${
-        isDragging ? "opacity-50 shadow-2xl z-50" : ""
-      }`}
-    >
-      <img src={photo.mediaUrl} alt={photo.title ?? ""} className="w-full h-full object-cover" draggable={false} />
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors cursor-grab active:cursor-grabbing"
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 text-xs font-body px-3 py-1.5 rounded-full transition-colors whitespace-nowrap ${
+          selected.size > 0
+            ? "bg-edn-navy text-white"
+            : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
+        }`}
       >
-        <GripVertical size={28} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
-      </div>
-      {photo.title && (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 pointer-events-none">
-          <p className="text-white text-[11px] font-body truncate">{photo.title}</p>
+        <Users size={12} />
+        Pessoas
+        {selected.size > 0 && (
+          <span className="bg-white/25 rounded-full px-1.5 leading-4">{selected.size}</span>
+        )}
+        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-lg border border-edn-mist z-30 min-w-[200px] py-1.5 max-h-64 overflow-y-auto">
+          {people.map((p) => {
+            const count = photos.filter((ph) => ph.tags.some((t) => t.userId === p.userId)).length;
+            return (
+              <label key={p.userId}
+                className="flex items-center gap-2.5 px-3.5 py-1.5 hover:bg-edn-cloud/40 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.has(p.userId)}
+                  onChange={() => onToggle(p.userId)}
+                  className="rounded accent-[#1a2744]"
+                />
+                {p.photoNow
+                  ? <img src={p.photoNow} alt="" className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
+                  : <div className="w-5 h-5 rounded-full bg-edn-steel flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-[8px] font-semibold">{getInitials(p.fullName)}</span>
+                    </div>
+                }
+                <span className="text-xs font-body text-edn-navy flex-1">{p.fullName ?? "?"}</span>
+                <span className="text-[10px] text-edn-gray/60">{count}</span>
+              </label>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
+// ── Sortable tile ────────────────────────────────────────────────────────────
+function SortableTile({ photo }: { photo: Photo }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: photo.id });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`relative group rounded-xl overflow-hidden bg-edn-cloud aspect-square ${isDragging ? "opacity-50 shadow-2xl z-50" : ""}`}>
+      <img src={photo.mediaUrl} alt={photo.title ?? ""} className="w-full h-full object-cover" draggable={false} />
+      <div {...attributes} {...listeners}
+        className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors cursor-grab active:cursor-grabbing">
+        <GripVertical size={28} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+      </div>
+    </div>
+  );
+}
+
 // ── Tag panel ────────────────────────────────────────────────────────────────
 function TagPanel({ photo, classmates, onTagsChange }: {
-  photo: Photo;
-  classmates: Classmate[];
-  onTagsChange: (tags: TaggedUser[]) => void;
+  photo: Photo; classmates: Classmate[]; onTagsChange: (tags: TaggedUser[]) => void;
 }) {
-  const [search,  setSearch]  = useState("");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const taggedIds = new Set(photo.tags.map((t) => t.userId));
-  const filtered  = classmates.filter(
+  const suggestions = classmates.filter(
     (c) => !taggedIds.has(c.id) && c.fullName.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -163,7 +183,7 @@ function TagPanel({ photo, classmates, onTagsChange }: {
           {photo.tags.map((t) => (
             <span key={t.userId} className="flex items-center gap-1 bg-white/20 text-white text-xs font-body px-2 py-0.5 rounded-full">
               {t.fullName ?? "?"}
-              <button onClick={() => removeTag(t.userId)} className="hover:text-red-300 ml-0.5" disabled={loading === t.userId}>
+              <button onClick={() => removeTag(t.userId)} disabled={loading === t.userId} className="hover:text-red-300 ml-0.5">
                 {loading === t.userId ? <Loader2 size={9} className="animate-spin" /> : <X size={9} />}
               </button>
             </span>
@@ -171,16 +191,12 @@ function TagPanel({ photo, classmates, onTagsChange }: {
         </div>
       )}
       <div className="relative">
-        <input
-          ref={inputRef}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+        <input ref={inputRef} value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar colega..."
-          className="w-full text-xs font-body bg-white/20 text-white placeholder:text-white/50 border border-white/30 rounded-lg px-3 py-1.5 focus:outline-none focus:border-white/60"
-        />
-        {search && filtered.length > 0 && (
+          className="w-full text-xs font-body bg-white/20 text-white placeholder:text-white/50 border border-white/30 rounded-lg px-3 py-1.5 focus:outline-none focus:border-white/60" />
+        {search && suggestions.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-xl z-10 max-h-40 overflow-y-auto py-1">
-            {filtered.slice(0, 8).map((c) => (
+            {suggestions.slice(0, 8).map((c) => (
               <button key={c.id} onClick={() => addTag(c)} disabled={loading === c.id}
                 className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-edn-cloud/60 text-left">
                 {c.photoNow
@@ -202,17 +218,13 @@ function TagPanel({ photo, classmates, onTagsChange }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function PhotoAlbumClient({
-  photos: initial,
-  classmates,
-  isAdmin,
+  photos: initial, classmates, isAdmin,
 }: {
-  photos: Photo[];
-  classmates: Classmate[];
-  isAdmin: boolean;
+  photos: Photo[]; classmates: Classmate[]; isAdmin: boolean;
 }) {
   const [photos,        setPhotos]        = useState<Photo[]>(initial);
   const [eraFilter,     setEraFilter]     = useState<EraFilterValue>("ALL");
-  const [personFilter,  setPersonFilter]  = useState<string | null>(null);
+  const [personFilter,  setPersonFilter]  = useState<Set<string>>(new Set());
   const [lightbox,      setLightbox]      = useState<number | null>(null);
   const [taggingEra,    setTaggingEra]    = useState(false);
   const [taggingWho,    setTaggingWho]    = useState(false);
@@ -220,44 +232,33 @@ export function PhotoAlbumClient({
   const [reordering,    setReordering]    = useState(false);
   const [saving,        setSaving]        = useState(false);
   const [saved,         setSaved]         = useState(false);
+  const [deleting,      setDeleting]      = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  // Photos sorted by era order → sortOrder → date (for "All" view)
   const allSorted = useMemo(() => sortedAll(photos), [photos]);
 
-  // Photos for the current filter (era/uncategorized/person), sorted within context
   const filtered = useMemo(() => {
     let base = allSorted;
-    if (eraFilter === "NONE")      base = allSorted.filter((p) => !p.era);
-    else if (eraFilter !== "ALL")  base = allSorted.filter((p) => p.era === eraFilter);
-    if (personFilter)              base = base.filter((p) => p.tags.some((t) => t.userId === personFilter));
-
-    // Within a specific era or uncategorized, sort by sortOrder
-    if (eraFilter !== "ALL") return sortedWithin(base);
-    return base;
+    if (eraFilter === "NONE")     base = allSorted.filter((p) => !p.era);
+    else if (eraFilter !== "ALL") base = allSorted.filter((p) => p.era === eraFilter);
+    if (personFilter.size > 0)   base = base.filter((p) => p.tags.some((t) => personFilter.has(t.userId)));
+    return eraFilter !== "ALL" ? sortedWithin(base) : base;
   }, [allSorted, eraFilter, personFilter]);
 
-  // Can only reorder within a specific era or uncategorized context
   const canReorder = isAdmin && eraFilter !== "ALL";
 
-  function startReorder() {
-    setReorderItems([...filtered]);
-    setReordering(true);
-  }
-
-  function cancelReorder() {
-    setReorderItems([]);
-    setReordering(false);
-  }
+  function startReorder() { setReorderItems([...filtered]); setReordering(true); }
+  function cancelReorder() { setReorderItems([]); setReordering(false); }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     setReorderItems((prev) => {
-      const oldIdx = prev.findIndex((p) => p.id === active.id);
-      const newIdx = prev.findIndex((p) => p.id === over.id);
-      return arrayMove(prev, oldIdx, newIdx);
+      const oi = prev.findIndex((p) => p.id === active.id);
+      const ni = prev.findIndex((p) => p.id === over.id);
+      return arrayMove(prev, oi, ni);
     });
   }
 
@@ -268,7 +269,6 @@ export function PhotoAlbumClient({
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),
     });
-    // Update local sortOrder values so re-sorts reflect the new order
     setPhotos((prev) => {
       const updated = [...prev];
       ids.forEach((id, i) => {
@@ -277,15 +277,14 @@ export function PhotoAlbumClient({
       });
       return updated;
     });
-    setSaving(false);
-    setSaved(true);
+    setSaving(false); setSaved(true);
     setTimeout(() => { setSaved(false); setReordering(false); setReorderItems([]); }, 1200);
   }
 
-  const open  = useCallback((idx: number) => { setTaggingEra(false); setTaggingWho(false); setLightbox(idx); }, []);
-  const close = useCallback(() => { setLightbox(null); setTaggingEra(false); setTaggingWho(false); }, []);
-  const prev  = useCallback(() => { setTaggingEra(false); setTaggingWho(false); setLightbox((i) => (i !== null && i > 0 ? i - 1 : i)); }, []);
-  const next  = useCallback(() => { setTaggingEra(false); setTaggingWho(false); setLightbox((i) => (i !== null && i < filtered.length - 1 ? i + 1 : i)); }, [filtered.length]);
+  const open  = useCallback((idx: number) => { setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); setLightbox(idx); }, []);
+  const close = useCallback(() => { setLightbox(null); setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); }, []);
+  const prev  = useCallback(() => { setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); setLightbox((i) => (i !== null && i > 0 ? i - 1 : i)); }, []);
+  const next  = useCallback(() => { setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); setLightbox((i) => (i !== null && i < filtered.length - 1 ? i + 1 : i)); }, [filtered.length]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -311,8 +310,23 @@ export function PhotoAlbumClient({
     setPhotos((prev) => prev.map((p) => p.id === photoId ? { ...p, tags } : p));
   }
 
-  const current = lightbox !== null ? filtered[lightbox] : null;
+  async function deletePhoto(photoId: string) {
+    setDeleting(true);
+    await fetch(`/api/memories/${photoId}`, { method: "DELETE" });
+    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    setDeleting(false);
+    close();
+  }
 
+  function togglePerson(id: string) {
+    setPersonFilter((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  const current = lightbox !== null ? filtered[lightbox] : null;
   const uncategorizedCount = photos.filter((p) => !p.era).length;
 
   const taggedPeople = useMemo(() =>
@@ -329,64 +343,49 @@ export function PhotoAlbumClient({
       <div className="flex flex-wrap items-center gap-2">
         {!reordering && (
           <>
-            {/* All */}
-            <button
-              onClick={() => { setEraFilter("ALL"); setPersonFilter(null); }}
+            <button onClick={() => { setEraFilter("ALL"); setPersonFilter(new Set()); }}
               className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
-                eraFilter === "ALL" && !personFilter ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
-              }`}
-            >
+                eraFilter === "ALL" && personFilter.size === 0 ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
+              }`}>
               Todas ({photos.length})
             </button>
 
-            {/* Era chips */}
             {MEMORY_ERAS.map((era) => {
               const count = photos.filter((p) => p.era === era.value).length;
               if (count === 0 && !isAdmin) return null;
               return (
-                <button
-                  key={era.value}
-                  onClick={() => { setEraFilter(era.value); setPersonFilter(null); }}
+                <button key={era.value} onClick={() => { setEraFilter(era.value); setPersonFilter(new Set()); }}
                   className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
                     eraFilter === era.value ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
-                  }`}
-                >
+                  }`}>
                   {era.emoji} {era.label} ({count})
                 </button>
               );
             })}
 
-            {/* Uncategorized */}
             {(uncategorizedCount > 0 || isAdmin) && (
-              <button
-                onClick={() => { setEraFilter("NONE"); setPersonFilter(null); }}
+              <button onClick={() => { setEraFilter("NONE"); setPersonFilter(new Set()); }}
                 className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
                   eraFilter === "NONE" ? "bg-edn-gray text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
-                }`}
-              >
+                }`}>
                 Sem era ({uncategorizedCount})
               </button>
             )}
 
-            {/* Person filter */}
-            {taggedPeople.length > 0 && (
-              <div className="flex items-center gap-1.5 border-l border-edn-mist pl-2 ml-0.5 flex-wrap">
-                {taggedPeople.map((t) => {
-                  const count = photos.filter((p) => p.tags.some((pt) => pt.userId === t.userId)).length;
-                  return (
-                    <button
-                      key={t.userId}
-                      onClick={() => { setPersonFilter(personFilter === t.userId ? null : t.userId); setEraFilter("ALL"); }}
-                      className={`flex items-center gap-1 text-xs font-body px-2.5 py-1.5 rounded-full transition-colors ${
-                        personFilter === t.userId ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
-                      }`}
-                    >
-                      {t.photoNow && <img src={t.photoNow} alt="" className="w-4 h-4 rounded-full object-cover" />}
-                      {t.fullName ?? "?"} ({count})
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Person dropdown */}
+            <PersonFilterDropdown
+              people={taggedPeople}
+              selected={personFilter}
+              onToggle={togglePerson}
+              photos={photos}
+            />
+
+            {/* Clear person filter */}
+            {personFilter.size > 0 && (
+              <button onClick={() => setPersonFilter(new Set())}
+                className="flex items-center gap-1 text-xs text-edn-gray/50 hover:text-edn-gray font-body transition-colors">
+                <X size={11} /> limpar
+              </button>
             )}
           </>
         )}
@@ -397,14 +396,15 @@ export function PhotoAlbumClient({
             {reordering ? (
               <>
                 <p className="text-xs text-edn-gray font-body">Arraste para reordenar</p>
-                <button onClick={cancelReorder} className="text-xs font-body text-edn-gray/60 hover:text-edn-gray px-3 py-1.5 rounded-full border border-edn-mist transition-colors">
+                <button onClick={cancelReorder}
+                  className="text-xs font-body text-edn-gray/60 hover:text-edn-gray px-3 py-1.5 rounded-full border border-edn-mist transition-colors">
                   Cancelar
                 </button>
                 <button onClick={saveOrder} disabled={saving || saved}
                   className="flex items-center gap-1.5 text-xs font-body font-semibold bg-edn-navy text-white px-3 py-1.5 rounded-full disabled:opacity-70 hover:bg-edn-navy/90">
                   {saved   ? <><Check size={12} /> Salvo</>
                   : saving ? <><Loader2 size={12} className="animate-spin" /> Salvando…</>
-                  : "Salvar ordem"}
+                  :          "Salvar ordem"}
                 </button>
               </>
             ) : canReorder ? (
@@ -413,8 +413,8 @@ export function PhotoAlbumClient({
                 Reordenar
               </button>
             ) : (
-              <span className="text-xs text-edn-gray/40 font-body px-3 py-1.5" title="Selecione uma categoria para reordenar">
-                Reordenar (selecione uma categoria)
+              <span className="text-xs text-edn-gray/40 font-body hidden sm:inline">
+                Selecione uma categoria para reordenar
               </span>
             )}
           </div>
@@ -501,7 +501,8 @@ export function PhotoAlbumClient({
 
               {taggingWho && (
                 <div className="mt-3 w-full max-w-xs">
-                  <TagPanel photo={current} classmates={classmates} onTagsChange={(tags) => updateTags(current.id, tags)} />
+                  <TagPanel photo={current} classmates={classmates}
+                    onTagsChange={(tags) => updateTags(current.id, tags)} />
                 </div>
               )}
 
@@ -522,18 +523,40 @@ export function PhotoAlbumClient({
                 </div>
               )}
 
+              {/* Action row */}
               <div className="mt-3 flex items-center gap-3">
-                <button onClick={() => { setTaggingWho((v) => !v); setTaggingEra(false); }}
+                <button onClick={() => { setTaggingWho((v) => !v); setTaggingEra(false); setConfirmDelete(false); }}
                   className={`flex items-center gap-1 text-xs font-body transition-colors ${taggingWho ? "text-white" : "text-white/60 hover:text-white"}`}>
                   <UserPlus size={12} />
                   {taggingWho ? "Fechar" : current.tags.length > 0 ? "Editar pessoas" : "Marcar pessoas"}
                 </button>
                 {isAdmin && (
-                  <button onClick={() => { setTaggingEra((v) => !v); setTaggingWho(false); }}
-                    className={`flex items-center gap-1 text-xs font-body transition-colors ${taggingEra ? "text-white" : "text-white/60 hover:text-white"}`}>
-                    <Tag size={11} />
-                    {taggingEra ? "Fechar" : "Classificar era"}
-                  </button>
+                  <>
+                    <button onClick={() => { setTaggingEra((v) => !v); setTaggingWho(false); setConfirmDelete(false); }}
+                      className={`flex items-center gap-1 text-xs font-body transition-colors ${taggingEra ? "text-white" : "text-white/60 hover:text-white"}`}>
+                      <Tag size={11} />
+                      {taggingEra ? "Fechar" : "Classificar era"}
+                    </button>
+
+                    {confirmDelete ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-white/70 text-xs font-body">Tem certeza?</span>
+                        <button onClick={() => deletePhoto(current.id)} disabled={deleting}
+                          className="flex items-center gap-1 text-xs font-body text-red-400 hover:text-red-300 transition-colors">
+                          {deleting ? <Loader2 size={11} className="animate-spin" /> : null}
+                          {deleting ? "Removendo…" : "Sim, remover"}
+                        </button>
+                        <button onClick={() => setConfirmDelete(false)} className="text-xs font-body text-white/50 hover:text-white transition-colors">
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setConfirmDelete(true); setTaggingEra(false); setTaggingWho(false); }}
+                        className="flex items-center gap-1 text-xs font-body text-white/40 hover:text-red-400 transition-colors">
+                        <Trash2 size={11} /> Remover
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

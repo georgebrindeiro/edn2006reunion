@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { UTApi } from "uploadthing/server";
+
+const utapi = new UTApi();
+
+function extractFileKey(url: string): string | null {
+  const match = url.match(/\/f\/([^/?#]+)/);
+  return match?.[1] ?? null;
+}
 
 // Admin: update any fields on a memory (era, title, content, author)
 export async function PATCH(
@@ -33,6 +41,17 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
+
+  const memory = await prisma.memory.findUnique({ where: { id }, select: { mediaUrl: true } });
+
+  // Delete from UploadThing before removing DB record
+  if (memory?.mediaUrl) {
+    const key = extractFileKey(memory.mediaUrl);
+    if (key) {
+      try { await utapi.deleteFiles(key); } catch { /* non-fatal */ }
+    }
+  }
+
   await prisma.memory.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
