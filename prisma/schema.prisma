@@ -26,6 +26,8 @@ model User {
   city          String?
   state         String?
   country       String?
+  latitude      Float?
+  longitude     Float?
   studyPeriods  StudyPeriod[]
 
   // Then & Now photos
