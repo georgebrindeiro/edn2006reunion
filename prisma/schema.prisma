@@ -39,6 +39,7 @@ model User {
 
   // Content contributions
   memories      Memory[]
+  comments      MemoryComment[]
   videoMessage  VideoMessage?
 
   sessions      Session[]
@@ -106,10 +107,26 @@ model Memory {
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   type      MemoryType
+  era       MemoryEra?
   title     String?
   content   String?     // text for quotes/stories
   mediaUrl  String?     // URL for photos/videos
   approved  Boolean     @default(true)
+
+  comments  MemoryComment[]
+}
+
+model MemoryComment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  memoryId  String
+  memory    Memory   @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content   String
 }
 
 model VideoMessage {
@@ -140,6 +157,14 @@ enum MemoryType {
   VIDEO
   QUOTE
   STORY
+}
+
+enum MemoryEra {
+  KINDERGARTEN
+  LOWER_SCHOOL
+  MIDDLE_SCHOOL
+  HIGH_SCHOOL
+  ADULT_LIFE
 }
 
 enum FoodPreference {

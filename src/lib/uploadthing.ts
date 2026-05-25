@@ -36,6 +36,15 @@ export const ourFileRouter = {
       return { ufsUrl: file.ufsUrl };
     }),
 
+  bulkPhotos: f({ image: { maxFileSize: "16MB", maxFileCount: 30 } })
+    .middleware(async () => {
+      const user = await getAuthUser();
+      return { userId: user.id };
+    })
+    .onUploadComplete(async ({ file }) => {
+      return { ufsUrl: file.ufsUrl };
+    }),
+
   videoMessage: f({ video: { maxFileSize: "256MB", maxFileCount: 1 } })
     .middleware(async () => {
       const user = await getAuthUser();

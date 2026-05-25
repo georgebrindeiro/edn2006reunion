@@ -7,13 +7,29 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.email)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { type, title, content, mediaUrl } = await req.json();
-
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
+  const body = await req.json();
+
+  // Bulk photo creation: { items: [{ mediaUrl, title?, era? }] }
+  if (Array.isArray(body.items)) {
+    const created = await prisma.memory.createManyAndReturn({
+      data: body.items.map((item: { mediaUrl: string; title?: string; era?: string }) => ({
+        userId:   user.id,
+        type:     "PHOTO" as const,
+        mediaUrl: item.mediaUrl,
+        title:    item.title ?? null,
+        era:      item.era ?? null,
+      })),
+      include: { user: { select: { fullName: true } } },
+    });
+    return NextResponse.json(created);
+  }
+
+  const { type, title, content, mediaUrl, era } = body;
   const memory = await prisma.memory.create({
-    data:    { userId: user.id, type, title, content, mediaUrl },
+    data:    { userId: user.id, type, title, content, mediaUrl, era: era ?? null },
     include: { user: { select: { fullName: true } } },
   });
 
