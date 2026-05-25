@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, RefreshCw, Download, Copy, Check } from "lucide-react";
+import { Download } from "lucide-react";
 
 interface Stats {
   total: number; attending: number; notGoing: number; noRsvp: number;
@@ -9,7 +8,8 @@ interface Stats {
 }
 
 interface UserRow {
-  id: string; fullName?: string; email: string; city?: string; country?: string;
+  id: string; fullName?: string; email?: string; phone?: string;
+  city?: string; country?: string;
   rsvp?: { isAttending: boolean; joinsBarbecue: boolean; drinksAlcohol: boolean;
             drinkPreference?: string; paymentRef?: string;
             guestAdults: { fullName: string }[];
@@ -17,35 +17,15 @@ interface UserRow {
 }
 
 export function AdminClient({
-  stats, users, currentToken,
-}: { stats: Stats; users: UserRow[]; currentToken: string | null }) {
-  const [token,    setToken]    = useState(currentToken);
-  const [rotating, setRotating] = useState(false);
-  const [copied,   setCopied]   = useState(false);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-
-  async function rotateToken() {
-    setRotating(true);
-    const res = await fetch("/api/admin/rotate-token", { method: "POST" });
-    if (res.ok) {
-      const { token: t } = await res.json();
-      setToken(t);
-    }
-    setRotating(false);
-  }
-
-  function copyLink() {
-    navigator.clipboard.writeText(`${appUrl}/register/${token}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
+  stats, users,
+}: { stats: Stats; users: UserRow[] }) {
   function downloadCsv() {
     const rows = [
-      ["Nome", "Email", "Cidade", "País", "Vai", "Churrasco", "Bebe", "Bebida", "Adultos", "Crianças", "PIX ref"],
+      ["Nome", "Telefone", "Email", "Cidade", "País", "Vai", "Churrasco", "Bebe", "Bebida", "Adultos", "Crianças", "PIX ref"],
       ...users.map((u) => [
         u.fullName ?? "",
-        u.email,
+        u.phone ?? "",
+        u.email ?? "",
         u.city ?? "",
         u.country ?? "",
         u.rsvp ? (u.rsvp.isAttending ? "Sim" : "Não") : "—",
@@ -88,37 +68,6 @@ export function AdminClient({
         ))}
       </div>
 
-      {/* Invite link */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
-        <h2 className="font-display text-edn-navy text-lg font-semibold">
-          Link de convite
-        </h2>
-        {token ? (
-          <>
-            <div className="bg-edn-cloud rounded-lg px-3 py-2.5 flex items-center gap-2">
-              <code className="text-edn-navy text-xs font-mono flex-1 truncate">
-                {appUrl}/register/{token}
-              </code>
-              <button onClick={copyLink}
-                className="p-1.5 text-edn-steel hover:text-edn-navy transition-colors shrink-0">
-                {copied ? <Check size={15} className="text-green-500" /> : <Copy size={15} />}
-              </button>
-            </div>
-            <p className="text-edn-gray text-xs font-body">
-              Compartilhe este link com os colegas para que possam criar seus perfis.
-              Ao rotacionar, o link anterior deixará de funcionar imediatamente.
-            </p>
-          </>
-        ) : (
-          <p className="text-edn-gray text-sm font-body">Nenhum link ativo.</p>
-        )}
-        <button onClick={rotateToken} disabled={rotating}
-          className="flex items-center gap-2 bg-edn-navy text-white text-sm font-body font-semibold px-5 py-2.5 rounded-lg hover:bg-edn-navy-mid transition-colors disabled:opacity-60">
-          {rotating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-          {rotating ? "Rotacionando..." : token ? "Rotacionar link" : "Gerar link"}
-        </button>
-      </div>
-
       {/* Users table */}
       <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
@@ -147,7 +96,7 @@ export function AdminClient({
                 <tr key={u.id} className="border-b border-edn-cloud hover:bg-edn-cloud/50">
                   <td className="py-2.5 px-2">
                     <p className="font-medium text-edn-navy text-sm">{u.fullName ?? "—"}</p>
-                    <p className="text-edn-gray text-xs">{u.email}</p>
+                    <p className="text-edn-gray text-xs">{u.phone ?? u.email ?? "—"}</p>
                   </td>
                   <td className="py-2.5 px-2 text-edn-gray text-xs">
                     {u.city ? `${u.city}, ${u.country}` : "—"}

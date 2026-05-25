@@ -16,13 +16,13 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Auth
-  email         String    @unique
+  email         String?   @unique
   role          Role      @default(MEMBER)
 
   // Profile
   fullName      String?
   birthday      DateTime?
-  phone         String?
+  phone         String?   @unique
   city          String?
   state         String?
   country       String?

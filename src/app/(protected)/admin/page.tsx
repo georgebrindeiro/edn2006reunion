@@ -7,7 +7,7 @@ export default async function AdminPage() {
   const session = await auth();
   if ((session?.user as any)?.role !== "ADMIN") redirect("/dashboard");
 
-  const [users, rsvps, token] = await Promise.all([
+  const [users, rsvps] = await Promise.all([
     prisma.user.findMany({
       include: {
         rsvp: { include: { guestAdults: true, guestChildren: true } },
@@ -18,7 +18,6 @@ export default async function AdminPage() {
     prisma.rsvp.findMany({
       include: { guestAdults: true, guestChildren: true },
     }),
-    prisma.inviteToken.findFirst({ where: { active: true }, orderBy: { createdAt: "desc" } }),
   ]);
 
   const stats = {
@@ -48,7 +47,6 @@ export default async function AdminPage() {
       <AdminClient
         stats={stats}
         users={users as any}
-        currentToken={token?.token ?? null}
       />
     </div>
   );

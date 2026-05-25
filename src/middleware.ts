@@ -10,17 +10,13 @@ export default auth((req) => {
   const isLoggedIn = !!session;
 
   const isAuthRoute      = nextUrl.pathname.startsWith("/login");
-  const isRegisterRoute  = nextUrl.pathname.startsWith("/register");
   const isApiRoute       = nextUrl.pathname.startsWith("/api");
-  const isProtectedRoute = !isAuthRoute && !isRegisterRoute && !isApiRoute &&
-                           nextUrl.pathname !== "/";
+  const isProtectedRoute = !isAuthRoute && !isApiRoute && nextUrl.pathname !== "/";
 
-  // Protect all non-auth routes
   if (isProtectedRoute && !isLoggedIn) {
     return NextResponse.redirect(new URL("/login", nextUrl));
   }
 
-  // Redirect logged-in users away from login
   if (isAuthRoute && isLoggedIn) {
     return NextResponse.redirect(new URL("/dashboard", nextUrl));
   }

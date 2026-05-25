@@ -30,6 +30,11 @@ export async function validateInviteToken(token: string) {
   return record?.active === true;
 }
 
+/** Strip all non-digit characters so phone numbers match regardless of formatting */
+export function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 /** School year range helpers */
 export const SCHOOL_YEAR_START = 1985;
 export const SCHOOL_YEAR_END   = 2010;
