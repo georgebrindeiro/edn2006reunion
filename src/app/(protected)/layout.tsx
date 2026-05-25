@@ -16,7 +16,7 @@ export default async function ProtectedLayout({
   const isAdmin = (session.user as any)?.role === "ADMIN";
 
   return (
-    <div className="min-h-screen bg-edn-cloud flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col">
       <Nav isAdmin={isAdmin} />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         {children}

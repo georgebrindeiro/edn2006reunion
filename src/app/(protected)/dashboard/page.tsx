@@ -44,7 +44,7 @@ export default async function DashboardPage() {
   const stats   = await getStats();
 
   const dbUser = await prisma.user.findUnique({
-    where:  { email: session!.user!.email! },
+    where:  { id: session!.user!.id },
     select: { fullName: true, rsvp: { select: { isAttending: true } } },
   });
 

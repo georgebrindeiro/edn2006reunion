@@ -116,14 +116,14 @@ export function LoginForm() {
 
   if (step === "check") {
     return (
-      <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-8 shadow-2xl">
-        <h2 className="font-display text-white text-xl font-semibold mb-6">
+      <div className="bg-white border border-edn-mist/60 rounded-2xl p-8 shadow-sm">
+        <h2 className="font-display text-edn-navy text-xl font-semibold mb-6">
           Entrar
         </h2>
 
         <form onSubmit={handleCheck} className="space-y-4">
           <div>
-            <label className="block text-edn-mist text-xs font-body uppercase tracking-wider mb-1.5">
+            <label className="block text-edn-gray text-xs font-body uppercase tracking-wider mb-1.5">
               Seu WhatsApp / Telefone
             </label>
             <input
@@ -132,12 +132,12 @@ export function LoginForm() {
               onChange={(e) => setPhone(e.target.value)}
               required
               placeholder="+55 61 9xxxx-xxxx"
-              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder:text-white/30 text-sm font-body focus:outline-none focus:border-edn-steel-lt focus:bg-white/15 transition-all"
+              className="w-full border border-edn-mist rounded-lg px-4 py-3 text-edn-navy placeholder:text-edn-gray/40 text-sm font-body focus:outline-none focus:border-edn-steel transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-edn-mist text-xs font-body uppercase tracking-wider mb-1.5">
+            <label className="block text-edn-gray text-xs font-body uppercase tracking-wider mb-1.5">
               Senha da turma
             </label>
             <div className="relative">
@@ -147,12 +147,12 @@ export function LoginForm() {
                 onChange={(e) => setPassphrase(e.target.value)}
                 required
                 placeholder="••••••••••••"
-                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 pr-11 text-white placeholder:text-white/30 text-sm font-body focus:outline-none focus:border-edn-steel-lt focus:bg-white/15 transition-all"
+                className="w-full border border-edn-mist rounded-lg px-4 py-3 pr-11 text-edn-navy placeholder:text-edn-gray/40 text-sm font-body focus:outline-none focus:border-edn-steel transition-all"
               />
               <button
                 type="button"
                 onClick={() => setShowPass(!showPass)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-edn-gray/50 hover:text-edn-navy transition-colors"
               >
                 {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -160,7 +160,7 @@ export function LoginForm() {
           </div>
 
           {error && (
-            <p className="text-red-300 text-xs font-body bg-red-500/10 rounded-lg px-3 py-2">
+            <p className="text-red-600 text-xs font-body bg-red-50 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
@@ -168,7 +168,7 @@ export function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-white text-edn-navy font-body font-semibold text-sm rounded-lg py-3 hover:bg-edn-mist transition-colors disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
+            className="w-full bg-edn-navy text-white font-body font-semibold text-sm rounded-lg py-3 hover:bg-edn-navy-mid transition-colors disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
             {loading ? "Verificando..." : "Continuar"}
