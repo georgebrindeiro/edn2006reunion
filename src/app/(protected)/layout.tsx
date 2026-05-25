@@ -22,7 +22,7 @@ export default async function ProtectedLayout({
         {children}
       </main>
       <footer className="bg-edn-navy text-edn-mist/50 text-center text-xs py-4 font-body">
-        Escola das Nações · World Citizens · Reencontro 2006
+        Escola das Nações · Reunion 2006
       </footer>
     </div>
   );

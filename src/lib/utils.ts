@@ -5,14 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Format a date nicely in Brazilian Portuguese */
+/** Format a date nicely in Brazilian Portuguese, always in BRT (America/Sao_Paulo) */
 export function formatDate(date: Date | string, opts?: Intl.DateTimeFormatOptions) {
+  // Date-only strings (YYYY-MM-DD) are parsed as UTC midnight by the JS engine.
+  // Appending T12:00:00 makes them noon UTC = 9 AM BRT, safely on the correct calendar day.
+  const d =
+    typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? new Date(date + "T12:00:00")
+      : new Date(date);
   return new Intl.DateTimeFormat("pt-BR", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "America/Sao_Paulo",
     ...opts,
-  }).format(new Date(date));
+  }).format(d);
 }
 
 /** Generate a URL-safe random token */

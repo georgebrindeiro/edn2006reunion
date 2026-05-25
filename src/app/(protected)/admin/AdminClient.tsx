@@ -2,26 +2,42 @@
 
 import { Download } from "lucide-react";
 
+const FOOD_LABEL: Record<string, string> = {
+  BARBECUE:   "Churrasco",
+  VEGETARIAN: "Vegetariano",
+  NO_FOOD:    "Sem almoço",
+};
+const DRINK_LABEL: Record<string, string> = {
+  CHOPP:         "Chopp",
+  NON_ALCOHOLIC: "Sem álcool",
+  OWN_DRINKS:    "Traz bebida",
+};
+
 interface Stats {
   total: number; attending: number; notGoing: number; noRsvp: number;
-  barbecue: number; alcohol: number; adults: number; children: number;
+  barbecue: number; vegetarian: number; chopp: number;
+  adults: number; children: number; withProof: number;
 }
+
+interface GuestRow { fullName: string; age?: number; foodPreference: string; drinkPreference: string }
 
 interface UserRow {
   id: string; fullName?: string; email?: string; phone?: string;
   city?: string; country?: string;
-  rsvp?: { isAttending: boolean; joinsBarbecue: boolean; drinksAlcohol: boolean;
-            drinkPreference?: string; paymentRef?: string;
-            guestAdults: { fullName: string }[];
-            guestChildren: { fullName: string; age?: number }[]; };
+  rsvp?: {
+    isAttending:     boolean;
+    foodPreference:  string;
+    drinkPreference: string;
+    paymentProofUrl?: string;
+    guestAdults:   GuestRow[];
+    guestChildren: GuestRow[];
+  };
 }
 
-export function AdminClient({
-  stats, users,
-}: { stats: Stats; users: UserRow[] }) {
+export function AdminClient({ stats, users }: { stats: Stats; users: UserRow[] }) {
   function downloadCsv() {
     const rows = [
-      ["Nome", "Telefone", "Email", "Cidade", "País", "Vai", "Churrasco", "Bebe", "Bebida", "Adultos", "Crianças", "PIX ref"],
+      ["Nome", "Telefone", "Email", "Cidade", "País", "Vai", "Comida", "Bebida", "Adultos", "Crianças", "Comprovante"],
       ...users.map((u) => [
         u.fullName ?? "",
         u.phone ?? "",
@@ -29,37 +45,39 @@ export function AdminClient({
         u.city ?? "",
         u.country ?? "",
         u.rsvp ? (u.rsvp.isAttending ? "Sim" : "Não") : "—",
-        u.rsvp?.joinsBarbecue ? "Sim" : "Não",
-        u.rsvp?.drinksAlcohol ? "Sim" : "Não",
-        u.rsvp?.drinkPreference ?? "",
+        u.rsvp ? (FOOD_LABEL[u.rsvp.foodPreference] ?? u.rsvp.foodPreference) : "",
+        u.rsvp ? (DRINK_LABEL[u.rsvp.drinkPreference] ?? u.rsvp.drinkPreference) : "",
         u.rsvp?.guestAdults.map((g) => g.fullName).join(" | ") ?? "",
         u.rsvp?.guestChildren.map((g) => `${g.fullName} (${g.age ?? "?"}a)`).join(" | ") ?? "",
-        u.rsvp?.paymentRef ?? "",
+        u.rsvp?.paymentProofUrl ? "Sim" : "Não",
       ]),
     ];
-    const csv = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+    const csv  = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a"); a.href = url; a.download = "edn-rsvp.csv"; a.click();
+    const a    = document.createElement("a");
+    a.href = url; a.download = "edn-rsvp.csv"; a.click();
     URL.revokeObjectURL(url);
   }
 
   const STAT_CARDS = [
-    { label: "Cadastrados",    value: stats.total,     color: "bg-edn-navy" },
+    { label: "Cadastrados",    value: stats.total,      color: "bg-edn-navy" },
     { label: "Vão",            value: stats.attending,  color: "bg-green-600" },
     { label: "Não vão",        value: stats.notGoing,   color: "bg-red-500" },
     { label: "Sem confirmação",value: stats.noRsvp,     color: "bg-yellow-500" },
     { label: "Churrasco",      value: stats.barbecue,   color: "bg-orange-500" },
-    { label: "Bebem álcool",   value: stats.alcohol,    color: "bg-purple-600" },
-    { label: "Adultos convid.", value: stats.adults,    color: "bg-edn-steel" },
+    { label: "Vegetariano",    value: stats.vegetarian, color: "bg-green-500" },
+    { label: "Adultos convid.",value: stats.adults,     color: "bg-edn-steel" },
     { label: "Crianças",       value: stats.children,   color: "bg-pink-500" },
+    { label: "Comprovante",    value: stats.withProof,  color: "bg-teal-600" },
+    { label: "Chopp",          value: stats.chopp,      color: "bg-amber-500" },
   ];
 
   return (
     <div className="space-y-8">
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {STAT_CARDS.map((s) => (
           <div key={s.label} className={`${s.color} rounded-xl p-4 text-white`}>
             <p className="font-display text-3xl font-bold">{s.value}</p>
@@ -74,19 +92,22 @@ export function AdminClient({
           <h2 className="font-display text-edn-navy text-lg font-semibold">
             Confirmações ({users.length})
           </h2>
-          <button onClick={downloadCsv}
-            className="flex items-center gap-1.5 text-edn-steel text-xs font-body font-semibold hover:text-edn-navy transition-colors">
+          <button
+            onClick={downloadCsv}
+            className="flex items-center gap-1.5 text-edn-steel text-xs font-body font-semibold hover:text-edn-navy transition-colors"
+          >
             <Download size={14} /> Exportar CSV
           </button>
         </div>
 
         <div className="overflow-x-auto -mx-2">
-          <table className="w-full text-sm font-body min-w-[640px]">
+          <table className="w-full text-sm font-body min-w-[700px]">
             <thead>
               <tr className="border-b border-edn-mist text-left">
                 <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Nome</th>
                 <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Cidade</th>
                 <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Confirmação</th>
+                <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Prefs</th>
                 <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Convidados</th>
                 <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Pagamento</th>
               </tr>
@@ -109,11 +130,13 @@ export function AdminClient({
                     ) : (
                       <span className="text-xs text-red-600 bg-red-50 rounded-full px-2 py-0.5">❌ Não vai</span>
                     )}
-                    {u.rsvp?.joinsBarbecue && (
-                      <span className="ml-1 text-xs text-orange-600 bg-orange-50 rounded-full px-2 py-0.5">🍖</span>
-                    )}
-                    {u.rsvp?.drinksAlcohol && (
-                      <span className="ml-1 text-xs text-purple-600 bg-purple-50 rounded-full px-2 py-0.5">🍺</span>
+                  </td>
+                  <td className="py-2.5 px-2 text-edn-gray text-xs space-y-0.5">
+                    {u.rsvp?.isAttending && (
+                      <>
+                        <p>{FOOD_LABEL[u.rsvp.foodPreference] ?? u.rsvp.foodPreference}</p>
+                        <p>{DRINK_LABEL[u.rsvp.drinkPreference] ?? u.rsvp.drinkPreference}</p>
+                      </>
                     )}
                   </td>
                   <td className="py-2.5 px-2 text-edn-gray text-xs">
@@ -130,8 +153,15 @@ export function AdminClient({
                     ) : "—"}
                   </td>
                   <td className="py-2.5 px-2">
-                    {u.rsvp?.paymentRef ? (
-                      <span className="text-xs text-green-700 bg-green-50 rounded-full px-2 py-0.5">✅ Pago</span>
+                    {u.rsvp?.paymentProofUrl ? (
+                      <a
+                        href={u.rsvp.paymentProofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-green-700 bg-green-50 rounded-full px-2 py-0.5 underline"
+                      >
+                        ✅ Ver
+                      </a>
                     ) : (
                       <span className="text-xs text-edn-gray">—</span>
                     )}

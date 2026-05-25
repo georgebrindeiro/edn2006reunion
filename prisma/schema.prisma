@@ -73,20 +73,20 @@ model Rsvp {
   guestAdults     Guest[]  @relation("AdultGuests")
   guestChildren   Guest[]  @relation("ChildGuests")
 
-  // Food & drinks
-  joinsBarbecue   Boolean  @default(false)
-  drinksAlcohol   Boolean  @default(false)
-  drinkPreference DrinkPreference?
+  foodPreference  FoodPreference  @default(BARBECUE)
+  drinkPreference DrinkPreference @default(NON_ALCOHOLIC)
 
-  // Payment
   paymentConfirmed Boolean @default(false)
-  paymentRef      String?
+  paymentProofUrl  String?
 }
 
 model Guest {
   id          String  @id @default(cuid())
   fullName    String
   age         Int?    // only for children
+
+  foodPreference  FoodPreference  @default(BARBECUE)
+  drinkPreference DrinkPreference @default(NON_ALCOHOLIC)
 
   // Relations — a guest is either an adult or child guest on an RSVP
   adultRsvp   Rsvp?   @relation("AdultGuests", fields: [adultRsvpId], references: [id], onDelete: Cascade)
@@ -140,8 +140,14 @@ enum MemoryType {
   STORY
 }
 
+enum FoodPreference {
+  BARBECUE
+  VEGETARIAN
+  NO_FOOD
+}
+
 enum DrinkPreference {
-  DRAFT_BEER
-  SPIRITS
-  BOTH
+  CHOPP
+  NON_ALCOHOLIC
+  OWN_DRINKS
 }

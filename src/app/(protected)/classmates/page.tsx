@@ -11,7 +11,7 @@ export default async function ClassmatesPage() {
     <div className="space-y-8">
       <div>
         <p className="text-edn-steel text-xs font-body uppercase tracking-widest mb-1">
-          Turma de 2006
+          EDN Class 2006
         </p>
         <h1 className="font-display text-edn-navy text-3xl font-bold">
           A Turma

@@ -3,12 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { EVENT, REUNION } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { RsvpForm } from "./RsvpForm";
-import { MapPin, CalendarDays, Utensils, CreditCard, Info } from "lucide-react";
+import { MapPin, CalendarDays, Info } from "lucide-react";
 
 export default async function RsvpPage() {
   const session = await auth();
   const user = await prisma.user.findUnique({
-    where:   { email: session!.user!.email! },
+    where:   { id: session!.user!.id },
     include: {
       rsvp: { include: { guestAdults: true, guestChildren: true } },
     },
@@ -19,7 +19,7 @@ export default async function RsvpPage() {
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
 
-      {/* ── Page header ────────────────────────────────────────── */}
+      {/* ── Page header ──────────────────────────────────────────── */}
       <div>
         <p className="text-edn-steel text-xs font-body uppercase tracking-widest mb-1">
           Reencontro {REUNION.classYear}
@@ -32,7 +32,7 @@ export default async function RsvpPage() {
         </p>
       </div>
 
-      {/* ── Event details card ─────────────────────────────────── */}
+      {/* ── Event details card ───────────────────────────────────── */}
       <div className="bg-edn-navy rounded-2xl p-6 text-white space-y-4">
         <h2 className="font-display text-lg font-semibold">Detalhes do Evento</h2>
 
@@ -43,7 +43,9 @@ export default async function RsvpPage() {
               <p className="text-sm font-body font-medium">
                 {eventReady ? formatDate(EVENT.date) : "Data a confirmar"}
               </p>
-              <p className="text-edn-mist/70 text-xs">{EVENT.time && !EVENT.time.includes("X") ? `${EVENT.time}h` : ""}</p>
+              {EVENT.time && !EVENT.time.includes("X") && (
+                <p className="text-edn-mist/70 text-xs">{EVENT.time}</p>
+              )}
             </div>
           </div>
 
@@ -67,32 +69,20 @@ export default async function RsvpPage() {
           </div>
 
           <div className="flex items-start gap-3">
-            <Utensils size={18} className="text-edn-steel-lt mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-body font-medium">O que está incluso</p>
-              <ul className="text-edn-mist/70 text-xs space-y-0.5 mt-0.5">
-                {EVENT.whatsIncluded.map((item) => (
-                  <li key={item}>· {item}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <CreditCard size={18} className="text-edn-steel-lt mt-0.5 shrink-0" />
+            <div className="text-edn-steel-lt mt-0.5 shrink-0 text-base leading-none">R$</div>
             <div>
               <p className="text-sm font-body font-medium">
                 {EVENT.costPerPerson > 0
-                  ? `R$ ${EVENT.costPerPerson.toFixed(2)} por pessoa`
+                  ? `R$ ${EVENT.costPerPerson} por adulto · R$ ${EVENT.costPerChild} por criança · R$ ${EVENT.costPerPersonReduced} se não for comer/beber`
                   : "Valor a confirmar"}
               </p>
-              <p className="text-edn-mist/70 text-xs whitespace-pre-line">{EVENT.paymentInfo}</p>
+              <p className="text-edn-mist/70 text-xs">Pagamento via PIX</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── RSVP Form ──────────────────────────────────────────── */}
+      {/* ── RSVP Form ────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-5">
           <Info size={16} className="text-edn-steel" />

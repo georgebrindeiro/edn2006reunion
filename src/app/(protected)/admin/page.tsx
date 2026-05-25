@@ -20,15 +20,19 @@ export default async function AdminPage() {
     }),
   ]);
 
+  const attending = rsvps.filter((r) => r.isAttending);
+
   const stats = {
     total:      users.length,
-    attending:  rsvps.filter((r) => r.isAttending).length,
+    attending:  attending.length,
     notGoing:   rsvps.filter((r) => !r.isAttending).length,
     noRsvp:     users.length - rsvps.length,
-    barbecue:   rsvps.filter((r) => r.joinsBarbecue).length,
-    alcohol:    rsvps.filter((r) => r.drinksAlcohol).length,
+    barbecue:   attending.filter((r) => r.foodPreference === "BARBECUE").length,
+    vegetarian: attending.filter((r) => r.foodPreference === "VEGETARIAN").length,
+    chopp:      attending.filter((r) => r.drinkPreference === "CHOPP").length,
     adults:     rsvps.reduce((acc, r) => acc + r.guestAdults.length, 0),
     children:   rsvps.reduce((acc, r) => acc + r.guestChildren.length, 0),
+    withProof:  rsvps.filter((r) => !!r.paymentProofUrl).length,
   };
 
   return (
@@ -44,10 +48,7 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      <AdminClient
-        stats={stats}
-        users={users as any}
-      />
+      <AdminClient stats={stats} users={users as any} />
     </div>
   );
 }

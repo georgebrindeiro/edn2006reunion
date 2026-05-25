@@ -6,26 +6,29 @@
 import type { EventDetails } from "@/types";
 
 export const EVENT: EventDetails = {
-  date:          "2026-XX-XX",                          // e.g. "2026-09-20"
-  time:          "XX:00",                               // e.g. "18:00"
-  venueName:     "Nome do Local",                       // venue name
-  venueAddress:  "Endereço completo do local",          // full address
-  venueCity:     "Brasília, DF — Brasil",
-  mapsUrl:       "https://maps.google.com/?q=...",      // Google Maps link
-  costPerPerson: 0,                                     // amount in BRL
-  currency:      "BRL",
-  paymentInfo:   "PIX: xxx@email.com | Nome: XXXXXXX", // payment instructions
+  date:             "2026-06-20",
+  time:             "12:00 - 20:00",
+  venueName:        "Clube da Aeronáutica",
+  venueAddress:     "SCEN Trecho 1 Conjunto 6",
+  venueCity:        "Brasília, DF — Brasil",
+  mapsUrl:          "https://maps.app.goo.gl/UShjxiKcpuiq1uoZ9",
+  costPerPerson:        160,
+  costPerPersonReduced: 40,   // NO_FOOD + OWN_DRINKS
+  costPerChild:         80,
+  currency:         "BRL",
+  pixKey:           "george.brindeiro@gmail.com",
+  pixRecipientName: "EDN REUNION 2006",
+  pixCity:          "BRASILIA",   // max 15 chars, no special characters
   whatsIncluded: [
     "Churrasco",
     "Bebidas não-alcoólicas",
-    "Chopp (para quem optar)",
+    "Chopp",
   ],
 };
 
 // Google Photos shared album embed URL
-// Share the album → Get link → paste it here
 export const GOOGLE_PHOTOS_ALBUM_URL =
-  "https://photos.app.goo.gl/REPLACE_WITH_YOUR_ALBUM_LINK";
+  "https://photos.app.goo.gl/ekfKLHTk9TLAYTFi9";
 
 // Reunion info
 export const REUNION = {

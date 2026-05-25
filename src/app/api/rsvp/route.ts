@@ -4,43 +4,36 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.email) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await req.json();
   const {
     isAttending,
-    guestAdults    = [],
-    guestChildren  = [],
-    joinsBarbecue  = false,
-    drinksAlcohol  = false,
-    drinkPreference,
-    paymentRef,
+    foodPreference  = "BARBECUE",
+    drinkPreference = "NON_ALCOHOLIC",
+    guestAdults     = [],
+    guestChildren   = [],
+    paymentProofUrl,
   } = body;
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  });
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const userId = session.user.id;
 
-  // Upsert RSVP
   const rsvp = await prisma.rsvp.upsert({
-    where:  { userId: user.id },
+    where:  { userId },
     create: {
-      userId:         user.id,
+      userId,
       isAttending,
-      joinsBarbecue,
-      drinksAlcohol,
-      drinkPreference: drinkPreference ?? null,
-      paymentRef:     paymentRef ?? null,
+      foodPreference,
+      drinkPreference,
+      paymentProofUrl: paymentProofUrl ?? null,
     },
     update: {
       isAttending,
-      joinsBarbecue,
-      drinksAlcohol,
-      drinkPreference: drinkPreference ?? null,
-      paymentRef:     paymentRef ?? null,
+      foodPreference,
+      drinkPreference,
+      paymentProofUrl: paymentProofUrl ?? null,
     },
   });
 
@@ -50,19 +43,23 @@ export async function POST(req: NextRequest) {
 
   if (guestAdults.length > 0) {
     await prisma.guest.createMany({
-      data: guestAdults.map((g: { fullName: string }) => ({
-        fullName:    g.fullName,
-        adultRsvpId: rsvp.id,
+      data: guestAdults.map((g: { fullName: string; foodPreference?: string; drinkPreference?: string }) => ({
+        fullName:        g.fullName,
+        foodPreference:  g.foodPreference  ?? "BARBECUE",
+        drinkPreference: g.drinkPreference ?? "NON_ALCOHOLIC",
+        adultRsvpId:     rsvp.id,
       })),
     });
   }
 
   if (guestChildren.length > 0) {
     await prisma.guest.createMany({
-      data: guestChildren.map((g: { fullName: string; age?: number }) => ({
-        fullName:    g.fullName,
-        age:         g.age ?? null,
-        childRsvpId: rsvp.id,
+      data: guestChildren.map((g: { fullName: string; age?: number; foodPreference?: string; drinkPreference?: string }) => ({
+        fullName:        g.fullName,
+        age:             g.age ?? null,
+        foodPreference:  g.foodPreference  ?? "BARBECUE",
+        drinkPreference: g.drinkPreference ?? "NON_ALCOHOLIC",
+        childRsvpId:     rsvp.id,
       })),
     });
   }
@@ -72,12 +69,12 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   const session = await auth();
-  if (!session?.user?.email) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const user = await prisma.user.findUnique({
-    where:   { email: session.user.email },
+    where:   { id: session.user.id },
     include: { rsvp: { include: { guestAdults: true, guestChildren: true } } },
   });
 

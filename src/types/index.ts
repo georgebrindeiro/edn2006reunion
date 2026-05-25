@@ -4,7 +4,8 @@ export type UserRole = "MEMBER" | "ADMIN";
 
 export type MemoryType = "PHOTO" | "VIDEO" | "QUOTE" | "STORY";
 
-export type DrinkPreference = "DRAFT_BEER" | "SPIRITS" | "BOTH";
+export type FoodPreference  = "BARBECUE" | "VEGETARIAN" | "NO_FOOD";
+export type DrinkPreference = "CHOPP" | "NON_ALCOHOLIC" | "OWN_DRINKS";
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 export interface ProfileFormData {
@@ -27,30 +28,35 @@ export interface StudyPeriodInput {
 
 // ─── RSVP ─────────────────────────────────────────────────────────────────────
 export interface GuestInput {
-  fullName: string;
-  age?:     number;
+  fullName:        string;
+  age?:            number;
+  foodPreference:  FoodPreference;
+  drinkPreference: DrinkPreference;
 }
 
 export interface RsvpFormData {
   isAttending:     boolean;
+  foodPreference:  FoodPreference;
+  drinkPreference: DrinkPreference;
   guestAdults:     GuestInput[];
   guestChildren:   GuestInput[];
-  joinsBarbecue:   boolean;
-  drinksAlcohol:   boolean;
-  drinkPreference?: DrinkPreference;
-  paymentRef?:     string;
+  paymentProofUrl?: string;
 }
 
 // ─── Event config (edit in constants.ts) ─────────────────────────────────────
 export interface EventDetails {
-  date:          string;
-  time:          string;
-  venueName:     string;
-  venueAddress:  string;
-  venueCity:     string;
-  mapsUrl:       string;
-  costPerPerson: number;
-  currency:      string;
-  paymentInfo:   string;
-  whatsIncluded: string[];
+  date:             string;
+  time:             string;
+  venueName:        string;
+  venueAddress:     string;
+  venueCity:        string;
+  mapsUrl:          string;
+  costPerPerson:        number;
+  costPerPersonReduced: number; // NO_FOOD + OWN_DRINKS
+  costPerChild:         number;
+  currency:         string;
+  pixKey:           string;
+  pixRecipientName: string; // max 25 chars, no accents
+  pixCity:          string; // max 15 chars, no accents
+  whatsIncluded:    string[];
 }
