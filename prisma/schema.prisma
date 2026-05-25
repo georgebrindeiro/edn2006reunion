@@ -154,6 +154,25 @@ model VideoMessage {
   approved  Boolean  @default(true)
 }
 
+model EventConfig {
+  id                   String   @id @default("singleton")
+  updatedAt            DateTime @updatedAt
+  date                 String   @default("XX/XX/XXXX")
+  time                 String   @default("12:00 - 20:00")
+  venueName            String   @default("Clube da Aeronáutica")
+  venueAddress         String   @default("SCEN Trecho 1 Conjunto 6")
+  venueCity            String   @default("Brasília, DF — Brasil")
+  mapsUrl              String   @default("")
+  costPerPerson        Int      @default(160)
+  costPerPersonReduced Int      @default(40)
+  costPerChild         Int      @default(80)
+  currency             String   @default("BRL")
+  pixKey               String   @default("")
+  pixRecipientName     String   @default("EDN REUNION 2006")
+  pixCity              String   @default("BRASILIA")
+  whatsIncluded        String[] @default(["Churrasco", "Bebidas não-alcoólicas", "Chopp"])
+}
+
 model InviteToken {
   id        String   @id @default(cuid())
   token     String   @unique @default(cuid())

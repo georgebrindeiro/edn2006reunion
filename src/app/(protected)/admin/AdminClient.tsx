@@ -1,6 +1,8 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { useState } from "react";
+import { Download, Pencil } from "lucide-react";
+import { AdminUserModal, type AdminUserRow } from "./AdminUserModal";
 
 const FOOD_LABEL: Record<string, string> = {
   BARBECUE:   "Churrasco",
@@ -13,43 +15,24 @@ const DRINK_LABEL: Record<string, string> = {
   OWN_DRINKS:    "Traz bebida",
 };
 
-interface Stats {
-  total: number; attending: number; notGoing: number; noRsvp: number;
-  barbecue: number; vegetarian: number; chopp: number;
-  adults: number; children: number; withProof: number;
-}
+export function AdminClient({ users }: { users: AdminUserRow[] }) {
+  const [editUser, setEditUser] = useState<AdminUserRow | null>(null);
 
-interface GuestRow { fullName: string; age?: number; foodPreference: string; drinkPreference: string }
-
-interface UserRow {
-  id: string; fullName?: string; email?: string; phone?: string;
-  city?: string; country?: string;
-  rsvp?: {
-    isAttending:     boolean;
-    foodPreference:  string;
-    drinkPreference: string;
-    paymentProofUrl?: string;
-    guestAdults:   GuestRow[];
-    guestChildren: GuestRow[];
-  };
-}
-
-export function AdminClient({ stats, users }: { stats: Stats; users: UserRow[] }) {
   function downloadCsv() {
     const rows = [
-      ["Nome", "Telefone", "Email", "Cidade", "País", "Vai", "Comida", "Bebida", "Adultos", "Crianças", "Comprovante"],
+      ["Nome", "Telefone", "Email", "Cidade", "País", "Vai", "Comida", "Bebida", "Adultos", "Crianças", "Pago"],
       ...users.map((u) => [
-        u.fullName ?? "",
-        u.phone ?? "",
-        u.email ?? "",
-        u.city ?? "",
-        u.country ?? "",
+        u.fullName  ?? "",
+        u.phone     ?? "",
+        u.email     ?? "",
+        u.city      ?? "",
+        u.country   ?? "",
         u.rsvp ? (u.rsvp.isAttending ? "Sim" : "Não") : "—",
-        u.rsvp ? (FOOD_LABEL[u.rsvp.foodPreference] ?? u.rsvp.foodPreference) : "",
+        u.rsvp ? (FOOD_LABEL[u.rsvp.foodPreference]  ?? u.rsvp.foodPreference)  : "",
         u.rsvp ? (DRINK_LABEL[u.rsvp.drinkPreference] ?? u.rsvp.drinkPreference) : "",
-        u.rsvp?.guestAdults.map((g) => g.fullName).join(" | ") ?? "",
+        u.rsvp?.guestAdults.map((g)  => g.fullName).join(" | ") ?? "",
         u.rsvp?.guestChildren.map((g) => `${g.fullName} (${g.age ?? "?"}a)`).join(" | ") ?? "",
-        u.rsvp?.paymentProofUrl ? "Sim" : "Não",
+        u.rsvp?.paymentConfirmed ? "Sim" : u.rsvp?.paymentProofUrl ? "Comprovante enviado" : "Não",
       ]),
     ];
     const csv  = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
@@ -60,37 +43,12 @@ export function AdminClient({ stats, users }: { stats: Stats; users: UserRow[] }
     URL.revokeObjectURL(url);
   }
 
-  const STAT_CARDS = [
-    { label: "Cadastrados",    value: stats.total,      color: "bg-edn-navy" },
-    { label: "Vão",            value: stats.attending,  color: "bg-green-600" },
-    { label: "Não vão",        value: stats.notGoing,   color: "bg-red-500" },
-    { label: "Sem confirmação",value: stats.noRsvp,     color: "bg-yellow-500" },
-    { label: "Churrasco",      value: stats.barbecue,   color: "bg-orange-500" },
-    { label: "Vegetariano",    value: stats.vegetarian, color: "bg-green-500" },
-    { label: "Adultos convid.",value: stats.adults,     color: "bg-edn-steel" },
-    { label: "Crianças",       value: stats.children,   color: "bg-pink-500" },
-    { label: "Comprovante",    value: stats.withProof,  color: "bg-teal-600" },
-    { label: "Chopp",          value: stats.chopp,      color: "bg-amber-500" },
-  ];
-
   return (
-    <div className="space-y-8">
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {STAT_CARDS.map((s) => (
-          <div key={s.label} className={`${s.color} rounded-xl p-4 text-white`}>
-            <p className="font-display text-3xl font-bold">{s.value}</p>
-            <p className="font-body text-xs mt-0.5 text-white/80">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Users table */}
+    <>
       <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-edn-navy text-lg font-semibold">
-            Confirmações ({users.length})
+            Participantes ({users.length})
           </h2>
           <button
             onClick={downloadCsv}
@@ -101,70 +59,98 @@ export function AdminClient({ stats, users }: { stats: Stats; users: UserRow[] }
         </div>
 
         <div className="overflow-x-auto -mx-2">
-          <table className="w-full text-sm font-body min-w-[700px]">
+          <table className="w-full text-sm font-body min-w-[860px]">
             <thead>
               <tr className="border-b border-edn-mist text-left">
-                <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Nome</th>
-                <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Cidade</th>
-                <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Confirmação</th>
-                <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Prefs</th>
-                <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Convidados</th>
-                <th className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide">Pagamento</th>
+                {["Nome", "Cidade", "Confirmação", "Prefs", "Convidados", "Pagamento", "Conteúdo", ""].map((h) => (
+                  <th key={h} className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide whitespace-nowrap">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-edn-cloud hover:bg-edn-cloud/50">
+                <tr key={u.id} className="group border-b border-edn-cloud hover:bg-edn-cloud/50">
+
+                  {/* Name */}
                   <td className="py-2.5 px-2">
-                    <p className="font-medium text-edn-navy text-sm">{u.fullName ?? "—"}</p>
+                    <p className="font-medium text-edn-navy text-sm leading-tight">{u.fullName ?? "—"}</p>
                     <p className="text-edn-gray text-xs">{u.phone ?? u.email ?? "—"}</p>
                   </td>
-                  <td className="py-2.5 px-2 text-edn-gray text-xs">
-                    {u.city ? `${u.city}, ${u.country}` : "—"}
+
+                  {/* City */}
+                  <td className="py-2.5 px-2 text-edn-gray text-xs whitespace-nowrap">
+                    {u.city ? `${u.city}${u.state ? `, ${u.state}` : ""}` : "—"}
                   </td>
+
+                  {/* Confirmation */}
                   <td className="py-2.5 px-2">
                     {!u.rsvp ? (
-                      <span className="text-xs text-yellow-600 bg-yellow-50 rounded-full px-2 py-0.5">Pendente</span>
+                      <span className="text-xs text-yellow-600 bg-yellow-50 rounded-full px-2 py-0.5 whitespace-nowrap">Pendente</span>
                     ) : u.rsvp.isAttending ? (
-                      <span className="text-xs text-green-700 bg-green-50 rounded-full px-2 py-0.5">✅ Vai</span>
+                      <span className="text-xs text-green-700 bg-green-50 rounded-full px-2 py-0.5 whitespace-nowrap">✅ Vai</span>
                     ) : (
-                      <span className="text-xs text-red-600 bg-red-50 rounded-full px-2 py-0.5">❌ Não vai</span>
+                      <span className="text-xs text-red-600 bg-red-50 rounded-full px-2 py-0.5 whitespace-nowrap">❌ Não vai</span>
                     )}
                   </td>
+
+                  {/* Prefs */}
                   <td className="py-2.5 px-2 text-edn-gray text-xs space-y-0.5">
                     {u.rsvp?.isAttending && (
                       <>
-                        <p>{FOOD_LABEL[u.rsvp.foodPreference] ?? u.rsvp.foodPreference}</p>
-                        <p>{DRINK_LABEL[u.rsvp.drinkPreference] ?? u.rsvp.drinkPreference}</p>
+                        <p className="whitespace-nowrap">{FOOD_LABEL[u.rsvp.foodPreference]  ?? u.rsvp.foodPreference}</p>
+                        <p className="whitespace-nowrap">{DRINK_LABEL[u.rsvp.drinkPreference] ?? u.rsvp.drinkPreference}</p>
                       </>
                     )}
                   </td>
-                  <td className="py-2.5 px-2 text-edn-gray text-xs">
-                    {u.rsvp ? (
-                      <>
-                        {u.rsvp.guestAdults.length > 0 && (
-                          <p>{u.rsvp.guestAdults.length} adulto(s)</p>
-                        )}
-                        {u.rsvp.guestChildren.length > 0 && (
-                          <p>{u.rsvp.guestChildren.length} criança(s)</p>
-                        )}
-                        {u.rsvp.guestAdults.length === 0 && u.rsvp.guestChildren.length === 0 && "Sozinho"}
-                      </>
-                    ) : "—"}
+
+                  {/* Guests */}
+                  <td className="py-2.5 px-2 text-edn-gray text-xs whitespace-nowrap">
+                    {u.rsvp
+                      ? u.rsvp.guestAdults.length + u.rsvp.guestChildren.length > 0
+                        ? `+${u.rsvp.guestAdults.length + u.rsvp.guestChildren.length}`
+                        : "Sozinho"
+                      : "—"}
                   </td>
+
+                  {/* Payment */}
                   <td className="py-2.5 px-2">
-                    {u.rsvp?.paymentProofUrl ? (
+                    {u.rsvp?.paymentConfirmed ? (
+                      <span className="text-xs text-green-700 bg-green-50 rounded-full px-2 py-0.5 whitespace-nowrap">✅ Pago</span>
+                    ) : u.rsvp?.paymentProofUrl ? (
                       <a
                         href={u.rsvp.paymentProofUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-green-700 bg-green-50 rounded-full px-2 py-0.5 underline"
+                        className="text-xs text-yellow-700 bg-yellow-50 rounded-full px-2 py-0.5 whitespace-nowrap underline"
                       >
-                        ✅ Ver
+                        Ver comprovante
                       </a>
                     ) : (
                       <span className="text-xs text-edn-gray">—</span>
                     )}
+                  </td>
+
+                  {/* Content metrics */}
+                  <td className="py-2.5 px-2">
+                    <div className="flex gap-2 text-xs text-edn-gray">
+                      {u.metrics.photos        > 0 && <span title="Fotos">📸 {u.metrics.photos}</span>}
+                      {u.metrics.quotes        > 0 && <span title="Citações">💬 {u.metrics.quotes}</span>}
+                      {u.metrics.stories       > 0 && <span title="Histórias">📖 {u.metrics.stories}</span>}
+                      {u.metrics.videoMessages > 0 && <span title="Vídeo">🎥</span>}
+                      {u.metrics.taggedIn      > 0 && <span title="Tags em fotos">🏷️ {u.metrics.taggedIn}</span>}
+                    </div>
+                  </td>
+
+                  {/* Edit pencil */}
+                  <td className="py-2.5 px-2 w-8">
+                    <button
+                      onClick={() => setEditUser(u)}
+                      className="opacity-0 group-hover:opacity-100 text-edn-gray/50 hover:text-edn-navy transition-all"
+                    >
+                      <Pencil size={14} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -172,6 +158,10 @@ export function AdminClient({ stats, users }: { stats: Stats; users: UserRow[] }
           </table>
         </div>
       </div>
-    </div>
+
+      {editUser && (
+        <AdminUserModal user={editUser} onClose={() => setEditUser(null)} />
+      )}
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { EVENT, REUNION } from "@/lib/constants";
+import { REUNION } from "@/lib/constants";
+import { getEventConfig } from "@/lib/event-config";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { CalendarDays, Clock, MapPin, Users, Camera, MessageCircle } from "lucide-react";
@@ -8,10 +9,13 @@ import { CalendarDays, Clock, MapPin, Users, Camera, MessageCircle } from "lucid
 export default async function DashboardPage() {
   const session = await auth();
 
-  const dbUser = await prisma.user.findUnique({
-    where:  { id: session!.user!.id },
-    select: { fullName: true, rsvp: { select: { isAttending: true } } },
-  });
+  const [dbUser, EVENT] = await Promise.all([
+    prisma.user.findUnique({
+      where:  { id: session!.user!.id },
+      select: { fullName: true, rsvp: { select: { isAttending: true } } },
+    }),
+    getEventConfig(),
+  ]);
 
   const firstName = dbUser?.fullName?.split(" ")[0] ?? "você";
   const hasRsvp   = !!dbUser?.rsvp;

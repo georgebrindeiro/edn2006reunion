@@ -1,18 +1,20 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { EVENT, REUNION } from "@/lib/constants";
+import { REUNION } from "@/lib/constants";
+import { getEventConfig } from "@/lib/event-config";
 import { formatDate } from "@/lib/utils";
 import { RsvpForm } from "./RsvpForm";
 import { MapPin, CalendarDays, Info } from "lucide-react";
 
 export default async function RsvpPage() {
   const session = await auth();
-  const user = await prisma.user.findUnique({
-    where:   { id: session!.user!.id },
-    include: {
-      rsvp: { include: { guestAdults: true, guestChildren: true } },
-    },
-  });
+  const [user, EVENT] = await Promise.all([
+    prisma.user.findUnique({
+      where:   { id: session!.user!.id },
+      include: { rsvp: { include: { guestAdults: true, guestChildren: true } } },
+    }),
+    getEventConfig(),
+  ]);
 
   const eventReady = !EVENT.date.includes("XX");
 
@@ -90,7 +92,7 @@ export default async function RsvpPage() {
             Você pode voltar e editar sua confirmação a qualquer momento.
           </p>
         </div>
-        <RsvpForm existingRsvp={user?.rsvp as any} />
+        <RsvpForm existingRsvp={user?.rsvp as any} event={EVENT} />
       </div>
     </div>
   );

@@ -4,9 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, Upload, CheckCircle2, Copy, Check } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-client";
-import { EVENT } from "@/lib/constants";
 import { generatePixPayload } from "@/lib/pix";
-import type { FoodPreference, DrinkPreference } from "@/types";
+import type { EventDetails, FoodPreference, DrinkPreference } from "@/types";
 import QRCode from "qrcode";
 
 type Food  = FoodPreference;
@@ -82,7 +81,7 @@ function DrinkToggle({ value, onChange }: { value: Drink; onChange: (v: Drink) =
   );
 }
 
-export function RsvpForm({ existingRsvp }: { existingRsvp?: ExistingRsvp }) {
+export function RsvpForm({ existingRsvp, event }: { existingRsvp?: ExistingRsvp; event: EventDetails }) {
   const router = useRouter();
   const r = existingRsvp;
 
@@ -104,8 +103,8 @@ export function RsvpForm({ existingRsvp }: { existingRsvp?: ExistingRsvp }) {
 
   function adultCost(food: Food, drink: Drink): number {
     return food === "NO_FOOD" && drink === "OWN_DRINKS"
-      ? EVENT.costPerPersonReduced
-      : EVENT.costPerPerson;
+      ? event.costPerPersonReduced
+      : event.costPerPerson;
   }
 
   const lineItems: { label: string; amount: number }[] =
@@ -118,7 +117,7 @@ export function RsvpForm({ existingRsvp }: { existingRsvp?: ExistingRsvp }) {
           })),
           ...children.map((c) => ({
             label:  c.fullName || "Criança",
-            amount: EVENT.costPerChild,
+            amount: event.costPerChild,
           })),
         ]
       : [];
@@ -145,12 +144,12 @@ export function RsvpForm({ existingRsvp }: { existingRsvp?: ExistingRsvp }) {
     : "";
 
   useEffect(() => {
-    if (!EVENT.pixKey || total === 0 || isAttending !== true) {
+    if (!event.pixKey || total === 0 || isAttending !== true) {
       setQrDataUrl("");
       setPixPayload("");
       return;
     }
-    const payload = generatePixPayload(EVENT.pixKey, EVENT.pixRecipientName, EVENT.pixCity, total, paymentDescription);
+    const payload = generatePixPayload(event.pixKey, event.pixRecipientName, event.pixCity, total, paymentDescription);
     setPixPayload(payload);
     QRCode.toDataURL(payload, { width: 220, margin: 2 })
       .then(setQrDataUrl)
@@ -378,7 +377,7 @@ export function RsvpForm({ existingRsvp }: { existingRsvp?: ExistingRsvp }) {
                 {lineItems.map((li, i) => (
                   <div key={i} className="flex justify-between text-xs font-body">
                     <span className="text-edn-mist/70">{li.label}</span>
-                    <span className={li.amount === EVENT.costPerPersonReduced ? "text-edn-steel-lt" : "text-edn-mist/70"}>
+                    <span className={li.amount === event.costPerPersonReduced ? "text-edn-steel-lt" : "text-edn-mist/70"}>
                       R$ {li.amount}
                     </span>
                   </div>
@@ -416,10 +415,10 @@ export function RsvpForm({ existingRsvp }: { existingRsvp?: ExistingRsvp }) {
               </div>
             )}
 
-            {!qrDataUrl && EVENT.pixKey && (
+            {!qrDataUrl && event.pixKey && (
               <div className="text-center">
                 <p className="text-edn-mist/60 text-xs font-body">Chave PIX:</p>
-                <p className="text-edn-mist text-sm font-body font-medium break-all">{EVENT.pixKey}</p>
+                <p className="text-edn-mist text-sm font-body font-medium break-all">{event.pixKey}</p>
               </div>
             )}
           </div>
