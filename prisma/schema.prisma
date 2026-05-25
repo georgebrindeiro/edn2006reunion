@@ -110,6 +110,7 @@ model Memory {
   era       MemoryEra?
   title     String?
   content   String?     // text for quotes/stories
+  author    String?     // quoted person (for QUOTE type)
   mediaUrl  String?     // URL for photos/videos
   approved  Boolean     @default(true)
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-// Admin: update era on a photo memory
+// Admin: update any fields on a memory (era, title, content, author)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -12,13 +12,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const { era } = await req.json();
+  const body = await req.json();
 
-  const memory = await prisma.memory.update({
-    where: { id },
-    data:  { era: era ?? null },
-  });
+  const data: Record<string, unknown> = {};
+  if ("era"     in body) data.era     = body.era     ?? null;
+  if ("title"   in body) data.title   = body.title   ?? null;
+  if ("content" in body) data.content = body.content ?? null;
+  if ("author"  in body) data.author  = body.author  ?? null;
 
+  const memory = await prisma.memory.update({ where: { id }, data });
   return NextResponse.json(memory);
 }
 

@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { StoryComments } from "./StoryComments";
+import { AdminEditButton } from "@/components/AdminMemoryEditor";
 
 export default async function StoryPage({
   params,
@@ -10,6 +12,9 @@ export default async function StoryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  const session = await auth();
+  const isAdmin = (session?.user as any)?.role === "ADMIN";
 
   const story = await prisma.memory.findUnique({
     where:   { id, type: "STORY", approved: true },
@@ -52,7 +57,7 @@ export default async function StoryPage({
       </Link>
 
       {/* Story */}
-      <article className="bg-white rounded-2xl shadow-sm p-6 border-l-4 border-edn-mist">
+      <article className="relative bg-white rounded-2xl shadow-sm p-6 border-l-4 border-edn-mist group">
         {story.title && (
           <h1 className="font-display text-edn-navy text-2xl font-bold mb-2">{story.title}</h1>
         )}
@@ -65,6 +70,13 @@ export default async function StoryPage({
         <p className="font-body text-edn-navy/80 text-sm leading-relaxed whitespace-pre-line">
           {story.content}
         </p>
+        {isAdmin && (
+          <div className="absolute top-4 right-4">
+            <AdminEditButton
+              memory={{ id: story.id, type: "STORY", title: story.title, content: story.content, author: story.author }}
+            />
+          </div>
+        )}
       </article>
 
       {/* Prev / Next */}

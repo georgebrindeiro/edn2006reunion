@@ -27,9 +27,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(created);
   }
 
-  const { type, title, content, mediaUrl, era } = body;
+  const { type, title, content, mediaUrl, era, author } = body;
   const memory = await prisma.memory.create({
-    data:    { userId: user.id, type, title, content, mediaUrl, era: era ?? null },
+    data:    { userId: user.id, type, title, content, mediaUrl, era: era ?? null, author: author ?? null },
     include: { user: { select: { fullName: true } } },
   });
 

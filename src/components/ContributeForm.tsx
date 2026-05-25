@@ -28,6 +28,7 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
   const [type,    setType]    = useState<MemoryType>("PHOTO");
   const [title,   setTitle]   = useState("");
   const [content, setContent] = useState("");
+  const [author,  setAuthor]  = useState("");
   const [era,     setEra]     = useState<MemoryEra | null>(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
@@ -41,7 +42,7 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
   const { startUpload } = useUploadThing("bulkPhotos");
 
   function resetForm() {
-    setType("PHOTO"); setTitle(""); setContent(""); setEra(null);
+    setType("PHOTO"); setTitle(""); setContent(""); setAuthor(""); setEra(null);
     setPhotos([]); setError(""); setDone(false);
   }
 
@@ -113,7 +114,7 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
       const res = await fetch("/api/memories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, title: title || null, content, era: era || null, mediaUrl: null }),
+        body: JSON.stringify({ type, title: title || null, content, era: era || null, mediaUrl: null, author: author || null }),
       });
       setLoading(false);
       if (!res.ok) { setError("Erro ao publicar. Tente novamente."); return; }
@@ -258,6 +259,14 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
                 }
                 className="w-full border border-edn-mist rounded-lg px-3 py-2.5 text-sm font-body text-edn-navy focus:outline-none focus:border-edn-steel resize-none"
               />
+              {type === "QUOTE" && (
+                <input
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  placeholder="Atribuir a... (ex: Prof. João, Fulano, Anônimo)"
+                  className="w-full border border-edn-mist rounded-lg px-3 py-2.5 text-sm font-body text-edn-navy focus:outline-none focus:border-edn-steel"
+                />
+              )}
             </div>
           )}
 
