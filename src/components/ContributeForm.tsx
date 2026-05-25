@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   Loader2, Plus, Image as ImageIcon, Quote, BookOpen, X, Upload, Check,
 } from "lucide-react";
@@ -37,7 +37,6 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
   // Bulk photo state
   const [photos,    setPhotos]    = useState<PendingPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const { startUpload } = useUploadThing("bulkPhotos");
 
@@ -173,17 +172,13 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
           {type === "PHOTO" && (
             <div className="space-y-3">
               {/* Drop zone */}
-              <label
-                className="flex flex-col items-center gap-2 p-6 rounded-xl border-2 border-dashed border-edn-mist hover:border-edn-navy hover:bg-edn-cloud/30 cursor-pointer transition-all"
-                onClick={() => fileRef.current?.click()}
-              >
+              <label className="flex flex-col items-center gap-2 p-6 rounded-xl border-2 border-dashed border-edn-mist hover:border-edn-navy hover:bg-edn-cloud/30 cursor-pointer transition-all">
                 <Upload size={22} className="text-edn-steel" />
                 <div className="text-center">
                   <p className="text-edn-navy text-sm font-body font-medium">Clique para adicionar fotos</p>
                   <p className="text-edn-gray text-xs font-body mt-0.5">Até 30 fotos · 16 MB cada</p>
                 </div>
                 <input
-                  ref={fileRef}
                   type="file"
                   accept="image/*"
                   multiple

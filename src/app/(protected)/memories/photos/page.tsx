@@ -6,11 +6,21 @@ export default async function PhotosPage() {
   const session = await auth();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
-  const photos = await prisma.memory.findMany({
-    where:   { approved: true, type: "PHOTO", mediaUrl: { not: null } },
-    include: { user: { select: { fullName: true } } },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-  });
+  const [photos, classmates] = await Promise.all([
+    prisma.memory.findMany({
+      where:   { approved: true, type: "PHOTO", mediaUrl: { not: null } },
+      include: {
+        user: { select: { fullName: true } },
+        tags: { include: { user: { select: { id: true, fullName: true, photoNow: true } } } },
+      },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+    }),
+    prisma.user.findMany({
+      where:   { fullName: { not: null } },
+      select:  { id: true, fullName: true, photoNow: true },
+      orderBy: { fullName: "asc" },
+    }),
+  ]);
 
   const serialized = photos.map((p) => ({
     id:        p.id,
@@ -20,6 +30,18 @@ export default async function PhotosPage() {
     sortOrder: p.sortOrder,
     createdAt: p.createdAt.toISOString(),
     userName:  p.user.fullName,
+    tags:      p.tags.map((t) => ({
+      id:       t.id,
+      userId:   t.userId,
+      fullName: t.user.fullName,
+      photoNow: t.user.photoNow,
+    })),
+  }));
+
+  const classmatesList = classmates.map((c) => ({
+    id:       c.id,
+    fullName: c.fullName!,
+    photoNow: c.photoNow,
   }));
 
   return (
@@ -33,7 +55,11 @@ export default async function PhotosPage() {
           {serialized.length} fotos de toda a nossa história na EDN.
         </p>
       </div>
-      <PhotoAlbumClient photos={serialized} isAdmin={isAdmin} />
+      <PhotoAlbumClient
+        photos={serialized}
+        classmates={classmatesList}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }
