@@ -22,7 +22,7 @@ export function Nav({ isAdmin = false }: { isAdmin?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 bg-edn-navy/95 backdrop-blur-sm border-b border-edn-navy-mid">
+    <header className="sticky top-0 z-50 bg-edn-navy/85 backdrop-blur-sm border-b border-edn-navy-mid">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-3 shrink-0">

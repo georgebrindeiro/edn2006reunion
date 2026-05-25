@@ -17,7 +17,7 @@ export function EdnLogo({
   className,
   size = 120,
   variant = "navy",
-  showText = true,
+  showText = false,
 }: EdnLogoProps) {
   const c = COLORS[variant];
   
@@ -73,7 +73,7 @@ export function EdnLogo({
         <div className="text-center leading-tight">
           <p
             className="font-body tracking-[0.25em] uppercase text-[0.55em]"
-            style={{ fontSize: size * 0.085, color: c.dark === "#ffffff" ? "#ffffff" : c.mid }}
+            style={{ fontSize: size * 0.085, color: c.dark === "#ffffff" ? "#ffffff" : "#c8d6e8" }}
           >
             World Citizens
           </p>

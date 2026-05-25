@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen bg-edn-navy flex flex-col relative overflow-hidden">
+    <main className="min-h-screen bg-edn-navy/85 flex flex-col relative overflow-hidden">
       {/* Background decorative circles */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-edn-navy-mid opacity-60" />
@@ -21,14 +21,14 @@ export default function LoginPage() {
       <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-4 py-16">
 
         {/* Logo + title */}
-        <div className="flex flex-col items-center mb-8 animate-fade-up">
-          <EdnLogo size={100} variant="white" showText={true} />
+        <div className="flex flex-col items-center mb-6 animate-fade-up">
+          <EdnLogo size={100} showText={false} />
         </div>
 
         {/* Reunion headline */}
         <div className="text-center mb-10 animate-fade-up animate-delay-200 opacity-0">
           
-          <h1 className="font-display text-white text-4xl md:text-5xl font-bold leading-tight mb-6">
+          <h1 className="font-display text-white text-4xl md:text-5xl font-bold leading-tight mb-8">
             EDN Class of {REUNION.classYear}
           </h1>
           <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5">
