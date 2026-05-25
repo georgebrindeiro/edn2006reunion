@@ -35,14 +35,14 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
   const [done,    setDone]    = useState(false);
 
   // Bulk photo state
-  const [photos,    setPhotos]    = useState<PendingPhoto[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [photos,       setPhotos]       = useState<PendingPhoto[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
 
-  const { startUpload } = useUploadThing("bulkPhotos");
+  const { startUpload } = useUploadThing("memoryMedia");
 
   function resetForm() {
     setType("PHOTO"); setTitle(""); setContent(""); setAuthor(""); setEra(null);
-    setPhotos([]); setError(""); setDone(false);
+    setPhotos([]); setUploadProgress(""); setError(""); setDone(false);
   }
 
   function handleClose() { setOpen(false); resetForm(); }
@@ -71,21 +71,34 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
     setPhotos((prev) => prev.map((p, i) => i === idx ? { ...p, title } : p));
   }
 
+  // Upload one file at a time to avoid bulk-presign issues
   async function uploadPendingPhotos(): Promise<PendingPhoto[]> {
     const toUpload = photos.filter((p) => p.url === null);
     if (toUpload.length === 0) return photos;
 
-    setUploading(true);
-    const results = await startUpload(toUpload.map((p) => p.file));
-    setUploading(false);
+    const uploaded = [...photos];
+    let failed = 0;
 
-    let ri = 0;
-    return photos.map((p) => {
-      if (p.url !== null) return p;
-      const url = results?.[ri]?.ufsUrl ?? results?.[ri]?.url ?? null;
-      ri++;
-      return { ...p, url };
-    });
+    for (let i = 0; i < toUpload.length; i++) {
+      setUploadProgress(`Enviando foto ${i + 1} de ${toUpload.length}…`);
+      const photo = toUpload[i];
+      try {
+        const res = await startUpload([photo.file]);
+        const url = res?.[0]?.ufsUrl ?? res?.[0]?.url ?? null;
+        if (url) {
+          const idx = uploaded.findIndex((p) => p.file === photo.file);
+          if (idx !== -1) uploaded[idx] = { ...uploaded[idx], url };
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    setUploadProgress("");
+    if (failed > 0) setError(`${failed} foto(s) não foram enviadas. Tente novamente.`);
+    return uploaded;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -271,11 +284,11 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
 
           <button
             type="submit"
-            disabled={loading || uploading}
+            disabled={loading || !!uploadProgress}
             className="w-full py-2.5 rounded-xl text-sm font-body font-semibold bg-edn-navy text-white hover:bg-edn-navy/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            {(loading || uploading) && <Loader2 size={14} className="animate-spin" />}
-            {uploading ? "Enviando fotos..." : loading ? "Publicando..." : "Publicar"}
+            {(loading || uploadProgress) && <Loader2 size={14} className="animate-spin" />}
+            {uploadProgress || (loading ? "Publicando..." : "Publicar")}
           </button>
         </form>
       )}
