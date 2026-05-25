@@ -9,7 +9,7 @@ export default async function PhotosPage() {
   const photos = await prisma.memory.findMany({
     where:   { approved: true, type: "PHOTO", mediaUrl: { not: null } },
     include: { user: { select: { fullName: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
 
   const serialized = photos.map((p) => ({
@@ -17,6 +17,7 @@ export default async function PhotosPage() {
     mediaUrl:  p.mediaUrl!,
     title:     p.title,
     era:       p.era,
+    sortOrder: p.sortOrder,
     createdAt: p.createdAt.toISOString(),
     userName:  p.user.fullName,
   }));

@@ -108,6 +108,7 @@ model Memory {
 
   type      MemoryType
   era       MemoryEra?
+  sortOrder Int?        // admin-controlled display order for photos
   title     String?
   content   String?     // text for quotes/stories
   author    String?     // quoted person (for QUOTE type)

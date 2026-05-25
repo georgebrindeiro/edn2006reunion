@@ -13,7 +13,7 @@ export default async function MemoriesPage() {
   const [photos, stories, quotes] = await Promise.all([
     prisma.memory.findMany({
       where:   { approved: true, type: "PHOTO", mediaUrl: { not: null } },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       take:    20,
       include: { user: { select: { fullName: true } } },
     }),
