@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   X, ChevronLeft, ChevronRight, Tag, GripVertical, Check, Loader2,
-  UserPlus, UserCheck, Users, ChevronDown, Trash2, MessageSquare, Play, Folder, Link2,
+  UserPlus, UserCheck, Users, ChevronDown, Trash2, MessageSquare, Play, Folder, Link2, Video,
 } from "lucide-react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -228,6 +228,7 @@ export function PhotoAlbumClient({
   const [eraFilter,      setEraFilter]      = useState<Set<string>>(new Set());
   const [personFilter,   setPersonFilter]   = useState<Set<string>>(new Set());
   const [labelFilter,    setLabelFilter]    = useState<Set<string>>(new Set());
+  const [videosOnly,     setVideosOnly]     = useState(false);
   const [lightbox,       setLightbox]       = useState<number | null>(() => {
     if (!initialPhotoId) return null;
     const idx = sortedAll(initial).findIndex((p) => p.id === initialPhotoId);
@@ -273,6 +274,8 @@ export function PhotoAlbumClient({
 
   const filtered = useMemo(() => {
     let base = allSorted;
+    // Media type filter
+    if (videosOnly) base = base.filter((p) => p.mediaType === "VIDEO");
     // Era filter: OR logic across selected eras; empty = all
     if (eraFilter.size > 0) base = base.filter((p) => p.era && eraFilter.has(p.era));
     // Label filter: OR logic; "__none__" matches photos with no folder
@@ -285,7 +288,7 @@ export function PhotoAlbumClient({
     if (personFilter.size > 0) base = base.filter((p) => p.tags.some((t) => personFilter.has(t.userId)));
     // Sort by sortOrder when viewing a single era; otherwise keep era-first ordering
     return eraFilter.size === 1 ? sortedWithin(base) : base;
-  }, [allSorted, eraFilter, personFilter, labelFilter]);
+  }, [allSorted, videosOnly, eraFilter, personFilter, labelFilter]);
 
   const canReorder = isAdmin && eraFilter.size === 1 && personFilter.size === 0 && labelFilter.size === 0;
 
@@ -411,7 +414,7 @@ export function PhotoAlbumClient({
     setLabelFilter((prev) => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
   }
   const displayPhotos = reordering ? reorderItems : filtered;
-  const activeFilters = eraFilter.size + personFilter.size + labelFilter.size;
+  const activeFilters = (videosOnly ? 1 : 0) + eraFilter.size + personFilter.size + labelFilter.size;
 
   return (
     <>
@@ -432,6 +435,20 @@ export function PhotoAlbumClient({
                 </button>
               );
             })}
+
+            {/* Videos-only toggle */}
+            {(() => {
+              const videoCount = photos.filter((p) => p.mediaType === "VIDEO").length;
+              if (videoCount === 0) return null;
+              return (
+                <button onClick={() => setVideosOnly((v) => !v)}
+                  className={`flex items-center gap-1.5 text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
+                    videosOnly ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
+                  }`}>
+                  <Video size={11} /> Vídeos ({videoCount})
+                </button>
+              );
+            })()}
 
             {/* Label / folder filter */}
             <MultiSelectDropdown
@@ -457,7 +474,7 @@ export function PhotoAlbumClient({
 
             {/* Clear all filters */}
             {activeFilters > 0 && (
-              <button onClick={() => { setEraFilter(new Set()); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
+              <button onClick={() => { setVideosOnly(false); setEraFilter(new Set()); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
                 className="flex items-center gap-1 text-xs text-edn-gray/50 hover:text-edn-gray font-body transition-colors">
                 <X size={11} /> limpar filtros
               </button>
