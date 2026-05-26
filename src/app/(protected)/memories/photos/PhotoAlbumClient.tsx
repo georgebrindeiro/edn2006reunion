@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   X, ChevronLeft, ChevronRight, Tag, GripVertical, Check, Loader2,
-  UserPlus, Users, ChevronDown, Trash2, MessageSquare, Play, Folder, Link2,
+  UserPlus, UserCheck, Users, ChevronDown, Trash2, MessageSquare, Play, Folder, Link2,
 } from "lucide-react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -217,10 +217,13 @@ function TagPanel({ photo, classmates, onTagsChange }: {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
+interface CurrentUser { id: string; fullName: string | null; photoNow: string | null }
+
 export function PhotoAlbumClient({
-  photos: initial, classmates, isAdmin, initialPhotoId,
+  photos: initial, classmates, isAdmin, initialPhotoId, currentUser,
 }: {
-  photos: Photo[]; classmates: Classmate[]; isAdmin: boolean; initialPhotoId?: string | null;
+  photos: Photo[]; classmates: Classmate[]; isAdmin: boolean;
+  initialPhotoId?: string | null; currentUser?: CurrentUser | null;
 }) {
   const [photos,         setPhotos]         = useState<Photo[]>(initial);
   const [eraFilter,      setEraFilter]      = useState<EraFilterValue>("ALL");
@@ -241,6 +244,7 @@ export function PhotoAlbumClient({
   const [deleting,       setDeleting]       = useState(false);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
   const [copied,         setCopied]         = useState(false);
+  const [selfTagging,    setSelfTagging]    = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const allSorted = useMemo(() => sortedAll(photos), [photos]);
@@ -319,6 +323,8 @@ export function PhotoAlbumClient({
     setTimeout(() => { setSaved(false); setReordering(false); setReorderItems([]); }, 1200);
   }
 
+  const current = lightbox !== null ? filtered[lightbox] : null;
+
   const resetLightboxPanels = useCallback(() => {
     setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); setShowComments(false);
   }, []);
@@ -328,16 +334,35 @@ export function PhotoAlbumClient({
   const prev  = useCallback(() => { resetLightboxPanels(); setLightbox((i) => (i !== null && i > 0 ? i - 1 : i)); }, [resetLightboxPanels]);
   const next  = useCallback(() => { resetLightboxPanels(); setLightbox((i) => (i !== null && i < filtered.length - 1 ? i + 1 : i)); }, [filtered.length, resetLightboxPanels]);
 
+  const tagMyself = useCallback(async () => {
+    if (!currentUser || !current) return;
+    if (current.tags.some((t) => t.userId === currentUser.id)) return;
+    setSelfTagging(true);
+    const res = await fetch(`/api/memories/${current.id}/tags`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: currentUser.id }),
+    });
+    if (res.ok) {
+      const tag = await res.json();
+      updateTags(current.id, [...current.tags, {
+        id: tag.id, userId: currentUser.id,
+        fullName: currentUser.fullName, photoNow: currentUser.photoNow,
+      }]);
+    }
+    setSelfTagging(false);
+  }, [currentUser, current]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (lightbox === null) return;
       if (e.key === "ArrowLeft")  prev();
       if (e.key === "ArrowRight") next();
       if (e.key === "Escape")     close();
+      if ((e.key === "t" || e.key === "T") && !e.metaKey && !e.ctrlKey && !e.altKey) tagMyself();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [lightbox, prev, next, close]);
+  }, [lightbox, prev, next, close, tagMyself]);
 
   async function applyEraTag(photoId: string, era: MemoryEra | null) {
     await fetch(`/api/memories/${photoId}`, {
@@ -373,8 +398,6 @@ export function PhotoAlbumClient({
   function toggleLabel(label: string) {
     setLabelFilter((prev) => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
   }
-
-  const current = lightbox !== null ? filtered[lightbox] : null;
   const uncategorizedCount = photos.filter((p) => !p.era).length;
   const displayPhotos = reordering ? reorderItems : filtered;
   const activeFilters = personFilter.size + labelFilter.size;
@@ -624,6 +647,18 @@ export function PhotoAlbumClient({
                   <Link2 size={12} />
                   {copied ? "Copiado!" : "Compartilhar"}
                 </button>
+
+                {currentUser && !current.tags.some((t) => t.userId === currentUser.id) && (
+                  <button onClick={tagMyself} disabled={selfTagging}
+                    className="flex items-center gap-1 text-xs font-body transition-colors text-white/60 hover:text-white disabled:opacity-50"
+                    title="Marcar-me nesta foto [T]">
+                    {selfTagging
+                      ? <Loader2 size={12} className="animate-spin" />
+                      : <UserCheck size={12} />}
+                    {selfTagging ? "Marcando…" : "Estou aqui"}
+                    {!selfTagging && <span className="text-white/30 text-[10px]">[T]</span>}
+                  </button>
+                )}
 
                 <button onClick={() => { setTaggingWho((v) => !v); setTaggingEra(false); setConfirmDelete(false); }}
                   className={`flex items-center gap-1 text-xs font-body transition-colors ${taggingWho ? "text-white" : "text-white/60 hover:text-white"}`}>

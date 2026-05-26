@@ -10,7 +10,7 @@ export default async function PhotosPage({
   const session = await auth();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
-  const [photos, classmates] = await Promise.all([
+  const [photos, classmates, currentUser] = await Promise.all([
     prisma.memory.findMany({
       where:   { approved: true, type: { in: ["PHOTO", "VIDEO"] }, mediaUrl: { not: null } },
       include: {
@@ -23,6 +23,10 @@ export default async function PhotosPage({
       where:   { fullName: { not: null } },
       select:  { id: true, fullName: true, photoNow: true },
       orderBy: { fullName: "asc" },
+    }),
+    prisma.user.findUnique({
+      where:  { email: session!.user!.email! },
+      select: { id: true, fullName: true, photoNow: true },
     }),
   ]);
 
@@ -65,6 +69,7 @@ export default async function PhotosPage({
         classmates={classmatesList}
         isAdmin={isAdmin}
         initialPhotoId={searchParams?.photo ?? null}
+        currentUser={currentUser ? { id: currentUser.id, fullName: currentUser.fullName, photoNow: currentUser.photoNow } : null}
       />
     </div>
   );
