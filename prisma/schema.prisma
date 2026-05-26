@@ -16,9 +16,10 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Auth
-  email         String?   @unique
-  role          Role      @default(MEMBER)
-  lastLoginAt   DateTime?
+  email           String?   @unique
+  role            Role      @default(MEMBER)
+  lastLoginAt     DateTime?
+  previousLoginAt DateTime?
 
   // Profile
   fullName      String?

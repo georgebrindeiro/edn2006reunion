@@ -219,16 +219,18 @@ function TagPanel({ photo, classmates, onTagsChange }: {
 interface CurrentUser { id: string; fullName: string | null; photoNow: string | null }
 
 export function PhotoAlbumClient({
-  photos: initial, classmates, isAdmin, initialPhotoId, currentUser,
+  photos: initial, classmates, isAdmin, initialPhotoId, currentUser, newSince,
 }: {
   photos: Photo[]; classmates: Classmate[]; isAdmin: boolean;
   initialPhotoId?: string | null; currentUser?: CurrentUser | null;
+  newSince?: string | null;
 }) {
   const [photos,         setPhotos]         = useState<Photo[]>(initial);
   const [eraFilter,      setEraFilter]      = useState<Set<string>>(new Set());
   const [personFilter,   setPersonFilter]   = useState<Set<string>>(new Set());
   const [labelFilter,    setLabelFilter]    = useState<Set<string>>(new Set());
   const [videosOnly,     setVideosOnly]     = useState(false);
+  const [newFilter,      setNewFilter]      = useState(false);
   const [lightbox,       setLightbox]       = useState<number | null>(() => {
     if (!initialPhotoId) return null;
     const idx = sortedAll(initial).findIndex((p) => p.id === initialPhotoId);
@@ -272,8 +274,16 @@ export function PhotoAlbumClient({
     [photos]
   );
 
+  const newSinceDate = useMemo(() => newSince ? new Date(newSince) : null, [newSince]);
+  const newCount = useMemo(
+    () => newSinceDate ? allSorted.filter((p) => new Date(p.createdAt) > newSinceDate).length : 0,
+    [allSorted, newSinceDate],
+  );
+
   const filtered = useMemo(() => {
     let base = allSorted;
+    // "New since last login" filter
+    if (newFilter && newSinceDate) base = base.filter((p) => new Date(p.createdAt) > newSinceDate);
     // Media type filter
     if (videosOnly) base = base.filter((p) => p.mediaType === "VIDEO");
     // Era filter: OR logic across selected eras; empty = all
@@ -288,7 +298,7 @@ export function PhotoAlbumClient({
     if (personFilter.size > 0) base = base.filter((p) => p.tags.some((t) => personFilter.has(t.userId)));
     // Sort by sortOrder when viewing a single era; otherwise keep era-first ordering
     return eraFilter.size === 1 ? sortedWithin(base) : base;
-  }, [allSorted, videosOnly, eraFilter, personFilter, labelFilter]);
+  }, [allSorted, newFilter, newSinceDate, videosOnly, eraFilter, personFilter, labelFilter]);
 
   const canReorder = isAdmin && eraFilter.size === 1 && personFilter.size === 0 && labelFilter.size === 0;
 
@@ -414,7 +424,7 @@ export function PhotoAlbumClient({
     setLabelFilter((prev) => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
   }
   const displayPhotos = reordering ? reorderItems : filtered;
-  const activeFilters = (videosOnly ? 1 : 0) + eraFilter.size + personFilter.size + labelFilter.size;
+  const activeFilters = (newFilter ? 1 : 0) + (videosOnly ? 1 : 0) + eraFilter.size + personFilter.size + labelFilter.size;
 
   return (
     <>
@@ -422,6 +432,16 @@ export function PhotoAlbumClient({
       <div className="flex flex-wrap items-center gap-2">
         {!reordering && (
           <>
+            {/* New since last login */}
+            {newSinceDate && newCount > 0 && (
+              <button onClick={() => setNewFilter((v) => !v)}
+                className={`flex items-center gap-1.5 text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
+                  newFilter ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
+                }`}>
+                ✨ Novo ({newCount})
+              </button>
+            )}
+
             {MEMORY_ERAS.map((era) => {
               const count = photos.filter((p) => p.era === era.value).length;
               if (count === 0 && !isAdmin) return null;
@@ -474,7 +494,7 @@ export function PhotoAlbumClient({
 
             {/* Clear all filters */}
             {activeFilters > 0 && (
-              <button onClick={() => { setVideosOnly(false); setEraFilter(new Set()); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
+              <button onClick={() => { setNewFilter(false); setVideosOnly(false); setEraFilter(new Set()); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
                 className="flex items-center gap-1 text-xs text-edn-gray/50 hover:text-edn-gray font-body transition-colors">
                 <X size={11} /> limpar filtros
               </button>

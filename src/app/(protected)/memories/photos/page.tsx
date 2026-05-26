@@ -26,7 +26,7 @@ export default async function PhotosPage({
     }),
     prisma.user.findUnique({
       where:  { email: session!.user!.email! },
-      select: { id: true, fullName: true, photoNow: true },
+      select: { id: true, fullName: true, photoNow: true, previousLoginAt: true },
     }),
   ]);
 
@@ -70,6 +70,7 @@ export default async function PhotosPage({
         isAdmin={isAdmin}
         initialPhotoId={searchParams?.photo ?? null}
         currentUser={currentUser ? { id: currentUser.id, fullName: currentUser.fullName, photoNow: currentUser.photoNow } : null}
+        newSince={currentUser?.previousLoginAt?.toISOString() ?? null}
       />
     </div>
   );

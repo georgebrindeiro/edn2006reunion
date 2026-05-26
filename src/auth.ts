@@ -24,9 +24,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!phone) return null;
 
         if (passphrase === process.env.ADMIN_PASSPHRASE) {
+          const existing = await prisma.user.findUnique({ where: { phone }, select: { lastLoginAt: true } });
           const admin = await prisma.user.upsert({
             where:  { phone },
-            update: { role: "ADMIN", lastLoginAt: new Date() },
+            update: { role: "ADMIN", previousLoginAt: existing?.lastLoginAt ?? null, lastLoginAt: new Date() },
             create: { phone, role: "ADMIN", lastLoginAt: new Date() },
           });
           return { id: admin.id, email: admin.email, role: admin.role };
@@ -39,7 +40,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         await prisma.user.update({
           where: { id: user.id },
-          data:  { lastLoginAt: new Date() },
+          data:  { previousLoginAt: user.lastLoginAt ?? null, lastLoginAt: new Date() },
         });
 
         return { id: user.id, email: user.email, role: user.role };
