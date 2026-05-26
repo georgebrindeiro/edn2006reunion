@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, AlertTriangle, CheckCircle2, RefreshCw, Play, X, RefreshCcw } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, RefreshCw, Play, X, RefreshCcw, Copy, Check } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { detectVideoCodecFromUrl, codecNeedsTranscode, transcodeToH264 } from "@/lib/video-compat";
 
@@ -12,6 +12,7 @@ interface VideoEntry {
   userName: string | null;
   createdAt: string;
   approved: boolean;
+  fileName: string | null;
 }
 
 type CompatStatus = "idle" | "checking" | "ok" | "incompatible" | "error";
@@ -24,6 +25,21 @@ interface VideoState {
   reprocessStatus: ReprocessStatus;
   reprocessProgress: number;
   newUrl: string | null;
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <button onClick={copy} title="Copiar nome do arquivo"
+      className="flex-shrink-0 text-edn-gray/50 hover:text-edn-navy transition-colors">
+      {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
+    </button>
+  );
 }
 
 export function AdminVideoPanel() {
@@ -167,6 +183,14 @@ export function AdminVideoPanel() {
                   <p className="text-xs text-edn-gray font-body">
                     {v.entry.userName ?? "—"} · {new Date(v.entry.createdAt).toLocaleDateString("pt-BR")}
                   </p>
+                  {v.entry.fileName && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="text-[10px] font-mono text-edn-gray/70 truncate max-w-[180px]" title={v.entry.fileName}>
+                        {v.entry.fileName}
+                      </span>
+                      <CopyButton text={v.entry.fileName} />
+                    </div>
+                  )}
                   {v.codec && (
                     <span className={`inline-block text-[10px] font-mono px-1.5 py-0.5 rounded mt-0.5 ${
                       v.compatStatus === "incompatible" ? "bg-amber-100 text-amber-700" : "bg-edn-cloud text-edn-gray/70"
