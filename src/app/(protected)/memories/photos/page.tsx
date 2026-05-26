@@ -2,7 +2,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PhotoAlbumClient } from "./PhotoAlbumClient";
 
-export default async function PhotosPage() {
+export default async function PhotosPage({
+  searchParams,
+}: {
+  searchParams: { photo?: string };
+}) {
   const session = await auth();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
@@ -60,6 +64,7 @@ export default async function PhotosPage() {
         photos={serialized}
         classmates={classmatesList}
         isAdmin={isAdmin}
+        initialPhotoId={searchParams?.photo ?? null}
       />
     </div>
   );

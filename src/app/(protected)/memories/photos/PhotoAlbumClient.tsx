@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   X, ChevronLeft, ChevronRight, Tag, GripVertical, Check, Loader2,
-  UserPlus, Users, ChevronDown, Trash2, MessageSquare, Play, Folder,
+  UserPlus, Users, ChevronDown, Trash2, MessageSquare, Play, Folder, Link2,
 } from "lucide-react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -218,15 +218,19 @@ function TagPanel({ photo, classmates, onTagsChange }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function PhotoAlbumClient({
-  photos: initial, classmates, isAdmin,
+  photos: initial, classmates, isAdmin, initialPhotoId,
 }: {
-  photos: Photo[]; classmates: Classmate[]; isAdmin: boolean;
+  photos: Photo[]; classmates: Classmate[]; isAdmin: boolean; initialPhotoId?: string | null;
 }) {
   const [photos,         setPhotos]         = useState<Photo[]>(initial);
   const [eraFilter,      setEraFilter]      = useState<EraFilterValue>("ALL");
   const [personFilter,   setPersonFilter]   = useState<Set<string>>(new Set());
   const [labelFilter,    setLabelFilter]    = useState<Set<string>>(new Set());
-  const [lightbox,       setLightbox]       = useState<number | null>(null);
+  const [lightbox,       setLightbox]       = useState<number | null>(() => {
+    if (!initialPhotoId) return null;
+    const idx = sortedAll(initial).findIndex((p) => p.id === initialPhotoId);
+    return idx !== -1 ? idx : null;
+  });
   const [taggingEra,     setTaggingEra]     = useState(false);
   const [taggingWho,     setTaggingWho]     = useState(false);
   const [showComments,   setShowComments]   = useState(false);
@@ -236,6 +240,7 @@ export function PhotoAlbumClient({
   const [saved,          setSaved]          = useState(false);
   const [deleting,       setDeleting]       = useState(false);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
+  const [copied,         setCopied]         = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const allSorted = useMemo(() => sortedAll(photos), [photos]);
@@ -270,6 +275,17 @@ export function PhotoAlbumClient({
   }, [allSorted, eraFilter, personFilter, labelFilter]);
 
   const canReorder = isAdmin && eraFilter !== "ALL";
+
+  // Sync ?photo=<id> in the URL whenever the lightbox opens, navigates, or closes
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (lightbox !== null && filtered[lightbox]) {
+      url.searchParams.set("photo", filtered[lightbox].id);
+    } else {
+      url.searchParams.delete("photo");
+    }
+    window.history.replaceState(null, "", url.toString());
+  }, [lightbox, filtered]);
 
   function startReorder() { setReorderItems([...filtered]); setReordering(true); }
   function cancelReorder() { setReorderItems([]); setReordering(false); }
@@ -342,6 +358,12 @@ export function PhotoAlbumClient({
     setPhotos((prev) => prev.filter((p) => p.id !== photoId));
     setDeleting(false);
     close();
+  }
+
+  function sharePhoto() {
+    navigator.clipboard.writeText(window.location.href).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   function togglePerson(id: string) {
@@ -597,6 +619,12 @@ export function PhotoAlbumClient({
 
               {/* Action row */}
               <div className="mt-3 flex flex-wrap items-center gap-3 justify-center px-4">
+                <button onClick={sharePhoto}
+                  className="flex items-center gap-1 text-xs font-body transition-colors text-white/60 hover:text-white">
+                  <Link2 size={12} />
+                  {copied ? "Copiado!" : "Compartilhar"}
+                </button>
+
                 <button onClick={() => { setTaggingWho((v) => !v); setTaggingEra(false); setConfirmDelete(false); }}
                   className={`flex items-center gap-1 text-xs font-body transition-colors ${taggingWho ? "text-white" : "text-white/60 hover:text-white"}`}>
                   <UserPlus size={12} />
