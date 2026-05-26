@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, AlertTriangle, CheckCircle2, RefreshCw, Play, X, RefreshCcw, Copy, Check, Download } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, RefreshCw, Play, X, RefreshCcw, Copy, Check, Download, Trash2 } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { detectVideoCodecFromUrl, codecNeedsTranscode, transcodeToH264 } from "@/lib/video-compat";
 
@@ -17,6 +17,7 @@ interface VideoEntry {
 
 type CompatStatus = "idle" | "checking" | "ok" | "incompatible" | "error";
 type ReprocessStatus = "idle" | "downloading" | "transcoding" | "uploading" | "done" | "error";
+type DeleteStatus = "idle" | "confirming" | "deleting";
 
 interface VideoState {
   entry: VideoEntry;
@@ -25,6 +26,7 @@ interface VideoState {
   reprocessStatus: ReprocessStatus;
   reprocessProgress: number;
   newUrl: string | null;
+  deleteStatus: DeleteStatus;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -43,12 +45,16 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export function AdminVideoPanel() {
-  const [videos,   setVideos]   = useState<VideoState[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [checking, setChecking] = useState(false);
-  const [preview,  setPreview]  = useState<VideoState | null>(null);
+  const [videos,         setVideos]         = useState<VideoState[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [checking,       setChecking]       = useState(false);
+  const [preview,        setPreview]        = useState<VideoState | null>(null);
+  const [deleteAllState, setDeleteAllState] = useState<"idle" | "confirming" | "deleting">("idle");
+  const [deleteAllDone,  setDeleteAllDone]  = useState(0);
   const { startUpload } = useUploadThing("memoryMedia");
   const abortRef = useRef(false);
+  // Per-row confirm timers
+  const confirmTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     fetch("/api/admin/videos")
@@ -57,6 +63,7 @@ export function AdminVideoPanel() {
         setVideos(data.map((e) => ({
           entry: e, compatStatus: "idle", codec: null,
           reprocessStatus: "idle", reprocessProgress: 0, newUrl: null,
+          deleteStatus: "idle",
         })));
         setLoading(false);
       })
@@ -106,7 +113,6 @@ export function AdminVideoPanel() {
       });
 
       update({ reprocessStatus: "done", newUrl, compatStatus: "ok" });
-      // Update preview if currently open
       setPreview((p) => p?.entry.id === v.entry.id ? { ...p, newUrl, reprocessStatus: "done", compatStatus: "ok" } : p);
     } catch (err) {
       console.error(err);
@@ -114,14 +120,48 @@ export function AdminVideoPanel() {
     }
   }
 
-  const incompatibleCount = videos.filter((v) => v.compatStatus === "incompatible").length;
-  const checkedCount      = videos.filter((v) => v.compatStatus !== "idle").length;
+  function startDeleteConfirm(id: string) {
+    setVideos((prev) => prev.map((v) => v.entry.id === id ? { ...v, deleteStatus: "confirming" } : v));
+    // Auto-cancel after 4 seconds
+    clearTimeout(confirmTimers.current[id]);
+    confirmTimers.current[id] = setTimeout(() => {
+      setVideos((prev) => prev.map((v) => v.entry.id === id && v.deleteStatus === "confirming" ? { ...v, deleteStatus: "idle" } : v));
+    }, 4000);
+  }
+
+  async function deleteVideo(id: string) {
+    clearTimeout(confirmTimers.current[id]);
+    setVideos((prev) => prev.map((v) => v.entry.id === id ? { ...v, deleteStatus: "deleting" } : v));
+    try {
+      await fetch(`/api/memories/${id}`, { method: "DELETE" });
+      setVideos((prev) => prev.filter((v) => v.entry.id !== id));
+      setPreview((p) => p?.entry.id === id ? null : p);
+    } catch {
+      setVideos((prev) => prev.map((v) => v.entry.id === id ? { ...v, deleteStatus: "idle" } : v));
+    }
+  }
+
+  async function deleteAll() {
+    setDeleteAllState("deleting");
+    setDeleteAllDone(0);
+    // Snapshot IDs so we don't iterate a mutating array
+    const ids = videos.map((v) => v.entry.id);
+    for (const id of ids) {
+      try {
+        await fetch(`/api/memories/${id}`, { method: "DELETE" });
+        setVideos((prev) => prev.filter((v) => v.entry.id !== id));
+        setDeleteAllDone((n) => n + 1);
+      } catch { /* skip failed ones */ }
+    }
+    setDeleteAllState("idle");
+    setPreview(null);
+  }
 
   function exportCsv() {
     const rows = [
       ["Pasta", "Nome do arquivo", "Data de upload", "Usuário"],
       ...videos.map((v) => [
-        v.entry.title   ?? "",
+        v.entry.title    ?? "",
         v.entry.fileName ?? "",
         new Date(v.entry.createdAt).toLocaleString("pt-BR"),
         v.entry.userName ?? "",
@@ -134,6 +174,9 @@ export function AdminVideoPanel() {
     a.href = url; a.download = "videos-admin.csv"; a.click();
     URL.revokeObjectURL(url);
   }
+
+  const incompatibleCount = videos.filter((v) => v.compatStatus === "incompatible").length;
+  const checkedCount      = videos.filter((v) => v.compatStatus !== "idle").length;
 
   if (loading) {
     return (
@@ -165,6 +208,40 @@ export function AdminVideoPanel() {
             >
               <Download size={12} /> Exportar CSV
             </button>
+
+            {/* Delete all */}
+            {deleteAllState === "idle" && (
+              <button
+                onClick={() => setDeleteAllState("confirming")}
+                className="flex items-center gap-1.5 text-xs font-body font-semibold px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:border-red-400 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={12} /> Deletar todos
+              </button>
+            )}
+            {deleteAllState === "confirming" && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-body text-red-600 font-semibold">Tem certeza?</span>
+                <button
+                  onClick={deleteAll}
+                  className="text-xs font-body font-semibold px-2.5 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  Sim, deletar {videos.length}
+                </button>
+                <button
+                  onClick={() => setDeleteAllState("idle")}
+                  className="text-xs font-body text-edn-gray/60 hover:text-edn-gray transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+            {deleteAllState === "deleting" && (
+              <div className="flex items-center gap-1.5 text-xs font-body text-red-500">
+                <Loader2 size={12} className="animate-spin" />
+                Deletando… {deleteAllDone}/{videos.length + deleteAllDone}
+              </div>
+            )}
+
             <button
               onClick={checking ? () => { abortRef.current = true; setChecking(false); } : checkAll}
               className="flex items-center gap-1.5 text-xs font-body font-semibold px-3 py-1.5 rounded-lg border border-edn-mist hover:border-edn-steel transition-colors text-edn-navy"
@@ -249,12 +326,34 @@ export function AdminVideoPanel() {
                   )}
                 </div>
 
-                {/* Right side: compat badge + reprocess button (always visible) */}
+                {/* Right side: compat badge + action buttons */}
                 <div className="flex flex-col items-end justify-between flex-shrink-0 gap-2">
                   <div className="flex items-center gap-1.5">
-                    {v.compatStatus === "checking"    && <Loader2 size={13} className="text-edn-gray animate-spin" />}
-                    {v.compatStatus === "ok"          && <CheckCircle2 size={13} className="text-green-500" />}
+                    {v.compatStatus === "checking"     && <Loader2 size={13} className="text-edn-gray animate-spin" />}
+                    {v.compatStatus === "ok"           && <CheckCircle2 size={13} className="text-green-500" />}
                     {v.compatStatus === "incompatible" && <AlertTriangle size={13} className="text-amber-500" />}
+
+                    {/* Delete button */}
+                    {v.deleteStatus === "idle" && (
+                      <button
+                        onClick={() => startDeleteConfirm(v.entry.id)}
+                        title="Deletar vídeo"
+                        className="text-edn-gray/40 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                    {v.deleteStatus === "confirming" && (
+                      <button
+                        onClick={() => deleteVideo(v.entry.id)}
+                        className="text-[10px] font-body font-semibold text-red-500 hover:text-red-700 transition-colors whitespace-nowrap"
+                      >
+                        Confirmar?
+                      </button>
+                    )}
+                    {v.deleteStatus === "deleting" && (
+                      <Loader2 size={13} className="text-red-400 animate-spin" />
+                    )}
                   </div>
 
                   {busy ? (
