@@ -34,6 +34,7 @@ export interface AdminUserRow {
     guestChildren: GuestRow[];
   } | null;
   metrics: Metrics;
+  lastLoginAt?: string | null;
 }
 
 function LabelField({

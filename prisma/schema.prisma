@@ -18,6 +18,7 @@ model User {
   // Auth
   email         String?   @unique
   role          Role      @default(MEMBER)
+  lastLoginAt   DateTime?
 
   // Profile
   fullName      String?

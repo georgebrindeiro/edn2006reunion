@@ -14,9 +14,9 @@ export async function POST(req: NextRequest) {
 
   if (Array.isArray(body.items)) {
     const created = await prisma.memory.createManyAndReturn({
-      data: body.items.map((item: { mediaUrl: string; title?: string; era?: string }) => ({
+      data: body.items.map((item: { mediaUrl: string; title?: string; era?: string; type?: string }) => ({
         userId:   user.id,
-        type:     "PHOTO" as const,
+        type:     (item.type === "VIDEO" ? "VIDEO" : "PHOTO") as "PHOTO" | "VIDEO",
         mediaUrl: item.mediaUrl,
         title:    item.title ?? null,
         era:      item.era ?? null,

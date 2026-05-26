@@ -243,6 +243,17 @@ export function ClassmatesView({
     });
   }
 
+  function toggleLocations(keys: string[]) {
+    setLocationFilters((prev) => {
+      const next = new Set(prev);
+      for (const k of keys) {
+        if (k.startsWith("-")) next.delete(k.slice(1));
+        else next.add(k);
+      }
+      return next;
+    });
+  }
+
   const filtered = useMemo(() => {
     const q    = name.trim().toLowerCase();
     const from = yearFrom ?? SCHOOL_YEAR_START;
@@ -277,7 +288,7 @@ export function ClassmatesView({
         classmates={classmates}
         total={classmates.length}
         activeCities={locationFilters}
-        onCityToggle={toggleLocation}
+        onCitiesToggle={toggleLocations}
       />
 
       {/* Streamlined filter row */}

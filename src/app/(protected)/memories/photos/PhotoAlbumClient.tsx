@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   X, ChevronLeft, ChevronRight, Tag, GripVertical, Check, Loader2,
-  UserPlus, Users, ChevronDown, Trash2, MessageSquare,
+  UserPlus, Users, ChevronDown, Trash2, MessageSquare, Play, Folder,
 } from "lucide-react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -39,7 +39,8 @@ function sortedWithin(photos: Photo[]): Photo[] {
 
 interface TaggedUser { id: string; userId: string; fullName: string | null; photoNow: string | null; }
 interface Photo {
-  id: string; mediaUrl: string; title: string | null; era: string | null;
+  id: string; mediaUrl: string; mediaType: "PHOTO" | "VIDEO";
+  title: string | null; era: string | null;
   sortOrder: number | null; createdAt: string; userName: string | null; tags: TaggedUser[];
 }
 interface Classmate { id: string; fullName: string; photoNow: string | null; }
@@ -50,11 +51,16 @@ function getInitials(name: string | null) {
   return name.split(" ").filter(Boolean).map((n) => n[0]).slice(0, 2).join("").toUpperCase();
 }
 
-// ── Person multi-select dropdown ─────────────────────────────────────────────
-function PersonFilterDropdown({
-  people, selected, onToggle, photos,
+// ── Multi-select dropdown (generic) ─────────────────────────────────────────
+function MultiSelectDropdown({
+  label, icon: Icon, options, selected, onToggle, count,
 }: {
-  people: TaggedUser[]; selected: Set<string>; onToggle: (id: string) => void; photos: Photo[];
+  label: string;
+  icon: React.ElementType;
+  options: { key: string; label: string; sublabel?: string }[];
+  selected: Set<string>;
+  onToggle: (key: string) => void;
+  count?: number;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -67,7 +73,7 @@ function PersonFilterDropdown({
     return () => document.removeEventListener("mousedown", outside);
   }, []);
 
-  if (people.length === 0) return null;
+  if (options.length === 0) return null;
 
   return (
     <div ref={ref} className="relative">
@@ -77,8 +83,8 @@ function PersonFilterDropdown({
           selected.size > 0 ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
         }`}
       >
-        <Users size={12} />
-        Pessoas
+        <Icon size={12} />
+        {label}
         {selected.size > 0 && (
           <span className="bg-white/25 rounded-full px-1.5 leading-4">{selected.size}</span>
         )}
@@ -86,29 +92,21 @@ function PersonFilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-lg border border-edn-mist z-30 min-w-[200px] py-1.5 max-h-64 overflow-y-auto">
-          {people.map((p) => {
-            const count = photos.filter((ph) => ph.tags.some((t) => t.userId === p.userId)).length;
-            return (
-              <label key={p.userId}
-                className="flex items-center gap-2.5 px-3.5 py-1.5 hover:bg-edn-cloud/40 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selected.has(p.userId)}
-                  onChange={() => onToggle(p.userId)}
-                  className="rounded accent-[#1a2744]"
-                />
-                {p.photoNow
-                  ? <img src={p.photoNow} alt="" className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
-                  : <div className="w-5 h-5 rounded-full bg-edn-steel flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-[8px] font-semibold">{getInitials(p.fullName)}</span>
-                    </div>
-                }
-                <span className="text-xs font-body text-edn-navy flex-1">{p.fullName ?? "?"}</span>
-                <span className="text-[10px] text-edn-gray/60">{count}</span>
-              </label>
-            );
-          })}
+        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-lg border border-edn-mist z-30 min-w-[220px] py-1.5 max-h-64 overflow-y-auto">
+          {options.map((opt) => (
+            <label key={opt.key} className="flex items-center gap-2.5 px-3.5 py-1.5 hover:bg-edn-cloud/40 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.has(opt.key)}
+                onChange={() => onToggle(opt.key)}
+                className="rounded accent-[#1a2744]"
+              />
+              <span className="text-xs font-body text-edn-navy flex-1 truncate">{opt.label}</span>
+              {opt.sublabel && (
+                <span className="text-[10px] text-edn-gray/60 flex-shrink-0">{opt.sublabel}</span>
+              )}
+            </label>
+          ))}
         </div>
       )}
     </div>
@@ -122,7 +120,17 @@ function SortableTile({ photo }: { photo: Photo }) {
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`relative group rounded-xl overflow-hidden bg-edn-cloud aspect-square ${isDragging ? "opacity-50 shadow-2xl z-50" : ""}`}>
-      <img src={photo.mediaUrl} alt={photo.title ?? ""} className="w-full h-full object-cover" draggable={false} />
+      {photo.mediaType === "VIDEO" ? (
+        <>
+          <video src={photo.mediaUrl} muted playsInline
+            className="w-full h-full object-cover" />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+            <Play size={24} className="text-white fill-white drop-shadow" />
+          </div>
+        </>
+      ) : (
+        <img src={photo.mediaUrl} alt={photo.title ?? ""} className="w-full h-full object-cover" draggable={false} />
+      )}
       <div {...attributes} {...listeners}
         className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors cursor-grab active:cursor-grabbing">
         <GripVertical size={28} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
@@ -132,7 +140,6 @@ function SortableTile({ photo }: { photo: Photo }) {
 }
 
 // ── Tag panel ────────────────────────────────────────────────────────────────
-// Search bar on top, dropdown opens UPWARD, tags listed below the search bar
 function TagPanel({ photo, classmates, onTagsChange }: {
   photo: Photo; classmates: Classmate[]; onTagsChange: (tags: TaggedUser[]) => void;
 }) {
@@ -171,13 +178,11 @@ function TagPanel({ photo, classmates, onTagsChange }: {
 
   return (
     <div className="w-full max-w-xs space-y-2">
-      {/* Search input with upward-opening dropdown */}
       <div className="relative">
         <input ref={inputRef} value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar colega para marcar..."
           className="w-full text-xs font-body bg-white/20 text-white placeholder:text-white/50 border border-white/30 rounded-lg px-3 py-1.5 focus:outline-none focus:border-white/60" />
         {search && suggestions.length > 0 && (
-          // Dropdown opens UPWARD to avoid bottom overflow
           <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-xl shadow-xl z-10 max-h-40 overflow-y-auto py-1">
             {suggestions.slice(0, 8).map((c) => (
               <button key={c.id} onClick={() => addTag(c)} disabled={loading === c.id}
@@ -195,8 +200,6 @@ function TagPanel({ photo, classmates, onTagsChange }: {
           </div>
         )}
       </div>
-
-      {/* Tagged people listed BELOW the search bar */}
       {photo.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {photo.tags.map((t) => (
@@ -219,31 +222,52 @@ export function PhotoAlbumClient({
 }: {
   photos: Photo[]; classmates: Classmate[]; isAdmin: boolean;
 }) {
-  const [photos,        setPhotos]        = useState<Photo[]>(initial);
-  const [eraFilter,     setEraFilter]     = useState<EraFilterValue>("ALL");
-  const [personFilter,  setPersonFilter]  = useState<Set<string>>(new Set());
-  const [lightbox,      setLightbox]      = useState<number | null>(null);
-  const [taggingEra,    setTaggingEra]    = useState(false);
-  const [taggingWho,    setTaggingWho]    = useState(false);
-  const [showComments,  setShowComments]  = useState(false);
-  const [reorderItems,  setReorderItems]  = useState<Photo[]>([]);
-  const [reordering,    setReordering]    = useState(false);
-  const [saving,        setSaving]        = useState(false);
-  const [saved,         setSaved]         = useState(false);
-  const [deleting,      setDeleting]      = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [photos,         setPhotos]         = useState<Photo[]>(initial);
+  const [eraFilter,      setEraFilter]      = useState<EraFilterValue>("ALL");
+  const [personFilter,   setPersonFilter]   = useState<Set<string>>(new Set());
+  const [labelFilter,    setLabelFilter]    = useState<Set<string>>(new Set());
+  const [lightbox,       setLightbox]       = useState<number | null>(null);
+  const [taggingEra,     setTaggingEra]     = useState(false);
+  const [taggingWho,     setTaggingWho]     = useState(false);
+  const [showComments,   setShowComments]   = useState(false);
+  const [reorderItems,   setReorderItems]   = useState<Photo[]>([]);
+  const [reordering,     setReordering]     = useState(false);
+  const [saving,         setSaving]         = useState(false);
+  const [saved,          setSaved]          = useState(false);
+  const [deleting,       setDeleting]       = useState(false);
+  const [confirmDelete,  setConfirmDelete]  = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
   const allSorted = useMemo(() => sortedAll(photos), [photos]);
+
+  // Collect unique non-empty labels for the folder filter
+  const allLabels = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of photos) {
+      if (p.title?.trim()) counts.set(p.title.trim(), (counts.get(p.title.trim()) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
+      .map(([label, count]) => ({ key: label, label, sublabel: String(count) }));
+  }, [photos]);
+
+  // Tagged people for people filter
+  const taggedPeople = useMemo(() =>
+    Array.from(new Map(photos.flatMap((p) => p.tags).map((t) => [t.userId, t])).values())
+      .sort((a, b) => (a.fullName ?? "").localeCompare(b.fullName ?? "", "pt-BR")),
+    [photos]
+  );
 
   const filtered = useMemo(() => {
     let base = allSorted;
     if (eraFilter === "NONE")     base = allSorted.filter((p) => !p.era);
     else if (eraFilter !== "ALL") base = allSorted.filter((p) => p.era === eraFilter);
+    // Label filter: OR logic
+    if (labelFilter.size > 0)    base = base.filter((p) => p.title && labelFilter.has(p.title.trim()));
+    // Person filter: OR logic
     if (personFilter.size > 0)   base = base.filter((p) => p.tags.some((t) => personFilter.has(t.userId)));
     return eraFilter !== "ALL" ? sortedWithin(base) : base;
-  }, [allSorted, eraFilter, personFilter]);
+  }, [allSorted, eraFilter, personFilter, labelFilter]);
 
   const canReorder = isAdmin && eraFilter !== "ALL";
 
@@ -321,23 +345,17 @@ export function PhotoAlbumClient({
   }
 
   function togglePerson(id: string) {
-    setPersonFilter((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setPersonFilter((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  function toggleLabel(label: string) {
+    setLabelFilter((prev) => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
   }
 
   const current = lightbox !== null ? filtered[lightbox] : null;
   const uncategorizedCount = photos.filter((p) => !p.era).length;
-
-  const taggedPeople = useMemo(() =>
-    Array.from(new Map(photos.flatMap((p) => p.tags).map((t) => [t.userId, t])).values())
-      .sort((a, b) => (a.fullName ?? "").localeCompare(b.fullName ?? "", "pt-BR")),
-    [photos]
-  );
-
   const displayPhotos = reordering ? reorderItems : filtered;
+  const activeFilters = personFilter.size + labelFilter.size;
 
   return (
     <>
@@ -345,9 +363,9 @@ export function PhotoAlbumClient({
       <div className="flex flex-wrap items-center gap-2">
         {!reordering && (
           <>
-            <button onClick={() => { setEraFilter("ALL"); setPersonFilter(new Set()); }}
+            <button onClick={() => { setEraFilter("ALL"); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
               className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
-                eraFilter === "ALL" && personFilter.size === 0 ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
+                eraFilter === "ALL" && activeFilters === 0 ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
               }`}>
               Todas ({photos.length})
             </button>
@@ -356,7 +374,7 @@ export function PhotoAlbumClient({
               const count = photos.filter((p) => p.era === era.value).length;
               if (count === 0 && !isAdmin) return null;
               return (
-                <button key={era.value} onClick={() => { setEraFilter(era.value); setPersonFilter(new Set()); }}
+                <button key={era.value} onClick={() => { setEraFilter(era.value); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
                   className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
                     eraFilter === era.value ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
                   }`}>
@@ -366,7 +384,7 @@ export function PhotoAlbumClient({
             })}
 
             {(uncategorizedCount > 0 || isAdmin) && (
-              <button onClick={() => { setEraFilter("NONE"); setPersonFilter(new Set()); }}
+              <button onClick={() => { setEraFilter("NONE"); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
                 className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
                   eraFilter === "NONE" ? "bg-edn-gray text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
                 }`}>
@@ -374,14 +392,33 @@ export function PhotoAlbumClient({
               </button>
             )}
 
-            <PersonFilterDropdown
-              people={taggedPeople} selected={personFilter} onToggle={togglePerson} photos={photos}
+            {/* Label / folder filter */}
+            <MultiSelectDropdown
+              label="Pastas"
+              icon={Folder}
+              options={allLabels}
+              selected={labelFilter}
+              onToggle={toggleLabel}
             />
 
-            {personFilter.size > 0 && (
-              <button onClick={() => setPersonFilter(new Set())}
+            {/* Person filter */}
+            <MultiSelectDropdown
+              label="Pessoas"
+              icon={Users}
+              options={taggedPeople.map((p) => ({
+                key: p.userId,
+                label: p.fullName ?? "?",
+                sublabel: String(photos.filter((ph) => ph.tags.some((t) => t.userId === p.userId)).length),
+              }))}
+              selected={personFilter}
+              onToggle={togglePerson}
+            />
+
+            {/* Clear all extra filters */}
+            {activeFilters > 0 && (
+              <button onClick={() => { setPersonFilter(new Set()); setLabelFilter(new Set()); }}
                 className="flex items-center gap-1 text-xs text-edn-gray/50 hover:text-edn-gray font-body transition-colors">
-                <X size={11} /> limpar
+                <X size={11} /> limpar filtros
               </button>
             )}
           </>
@@ -398,9 +435,7 @@ export function PhotoAlbumClient({
                 </button>
                 <button onClick={saveOrder} disabled={saving || saved}
                   className="flex items-center gap-1.5 text-xs font-body font-semibold bg-edn-navy text-white px-3 py-1.5 rounded-full disabled:opacity-70 hover:bg-edn-navy/90">
-                  {saved   ? <><Check size={12} /> Salvo</>
-                  : saving ? <><Loader2 size={12} className="animate-spin" /> Salvando…</>
-                  :          "Salvar ordem"}
+                  {saved ? <><Check size={12} /> Salvo</> : saving ? <><Loader2 size={12} className="animate-spin" /> Salvando…</> : "Salvar ordem"}
                 </button>
               </>
             ) : canReorder ? (
@@ -417,10 +452,17 @@ export function PhotoAlbumClient({
         )}
       </div>
 
+      {/* Result count when filtering */}
+      {activeFilters > 0 && (
+        <p className="text-xs font-body text-edn-gray/70">
+          {filtered.length} resultado(s) com filtros ativos
+        </p>
+      )}
+
       {/* Grid */}
       {displayPhotos.length === 0 ? (
         <div className="text-center py-16 text-edn-gray font-body text-sm">
-          {eraFilter === "NONE" ? "Nenhuma foto sem categoria." : "Nenhuma foto nesta categoria ainda."}
+          {eraFilter === "NONE" ? "Nenhum item sem categoria." : "Nenhum resultado para os filtros selecionados."}
         </div>
       ) : reordering ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -435,8 +477,18 @@ export function PhotoAlbumClient({
           {displayPhotos.map((photo, idx) => (
             <div key={photo.id} onClick={() => open(idx)}
               className="break-inside-avoid cursor-pointer overflow-hidden rounded-xl group relative">
-              <img src={photo.mediaUrl} alt={photo.title ?? ""}
-                className="w-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+              {photo.mediaType === "VIDEO" ? (
+                <>
+                  <video src={photo.mediaUrl} muted playsInline
+                    className="w-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+                    <Play size={28} className="text-white fill-white drop-shadow" />
+                  </div>
+                </>
+              ) : (
+                <img src={photo.mediaUrl} alt={photo.title ?? ""}
+                  className="w-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+              )}
               {photo.era && (
                 <div className="absolute top-1.5 left-1.5 bg-black/40 text-white text-[10px] font-body px-1.5 py-0.5 rounded-full">
                   {MEMORY_ERAS.find((e) => e.value === photo.era)?.emoji}
@@ -474,10 +526,20 @@ export function PhotoAlbumClient({
           <div className="relative flex flex-col lg:flex-row max-w-5xl w-full max-h-[95vh] lg:max-h-[90vh] mx-2 lg:mx-4 overflow-y-auto lg:overflow-visible"
             onClick={(e) => e.stopPropagation()}>
 
-            {/* Image column */}
             <div className="flex-1 flex flex-col items-center justify-center min-w-0 py-4 lg:py-0">
-              <img src={current.mediaUrl} alt={current.title ?? ""}
-                className="max-h-[55vh] lg:max-h-[72vh] max-w-full object-contain rounded-xl" />
+              {/* Video or image */}
+              {current.mediaType === "VIDEO" ? (
+                <video
+                  src={current.mediaUrl}
+                  controls
+                  autoPlay
+                  className="max-h-[55vh] lg:max-h-[72vh] max-w-full rounded-xl"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <img src={current.mediaUrl} alt={current.title ?? ""}
+                  className="max-h-[55vh] lg:max-h-[72vh] max-w-full object-contain rounded-xl" />
+              )}
 
               <div className="mt-2 text-center">
                 {current.title && <p className="text-white font-body text-sm">{current.title}</p>}
@@ -522,7 +584,6 @@ export function PhotoAlbumClient({
                 </div>
               )}
 
-              {/* Mobile comments inline */}
               {showComments && (
                 <div className="lg:hidden mt-3 w-full bg-white rounded-xl overflow-hidden mx-4" style={{ maxWidth: "calc(100% - 2rem)" }}>
                   <div className="p-3 border-b border-edn-mist">
@@ -542,7 +603,6 @@ export function PhotoAlbumClient({
                   {taggingWho ? "Fechar" : current.tags.length > 0 ? "Editar pessoas" : "Marcar pessoas"}
                 </button>
 
-                {/* Mobile: comments toggle */}
                 <button onClick={() => { setShowComments((v) => !v); setTaggingWho(false); setTaggingEra(false); setConfirmDelete(false); }}
                   className={`lg:hidden flex items-center gap-1 text-xs font-body transition-colors ${showComments ? "text-white" : "text-white/60 hover:text-white"}`}>
                   <MessageSquare size={12} />
@@ -565,9 +625,7 @@ export function PhotoAlbumClient({
                           {deleting ? <Loader2 size={11} className="animate-spin" /> : null}
                           {deleting ? "Removendo…" : "Sim, remover"}
                         </button>
-                        <button onClick={() => setConfirmDelete(false)} className="text-xs font-body text-white/50 hover:text-white transition-colors">
-                          Cancelar
-                        </button>
+                        <button onClick={() => setConfirmDelete(false)} className="text-xs font-body text-white/50 hover:text-white">Cancelar</button>
                       </div>
                     ) : (
                       <button onClick={() => { setConfirmDelete(true); setTaggingEra(false); setTaggingWho(false); }}
@@ -580,7 +638,6 @@ export function PhotoAlbumClient({
               </div>
             </div>
 
-            {/* Desktop sidebar comments */}
             <div className="hidden lg:flex flex-col w-72 ml-4 bg-white rounded-xl overflow-hidden flex-shrink-0">
               <div className="p-3 border-b border-edn-mist">
                 <p className="text-edn-navy text-sm font-body font-semibold">Comentários</p>

@@ -33,14 +33,15 @@ export default async function AdminPage() {
   }
 
   const usersWithMetrics = users.map((u) => ({
-    id:       u.id,
-    fullName: u.fullName,
-    email:    u.email,
-    phone:    u.phone,
-    city:     u.city,
-    state:    u.state,
-    country:  u.country,
-    rsvp:     u.rsvp,
+    id:          u.id,
+    fullName:    u.fullName,
+    email:       u.email,
+    phone:       u.phone,
+    city:        u.city,
+    state:       u.state,
+    country:     u.country,
+    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    rsvp:        u.rsvp,
     metrics: {
       photos:        memMap[u.id]?.PHOTO ?? 0,
       quotes:        memMap[u.id]?.QUOTE ?? 0,

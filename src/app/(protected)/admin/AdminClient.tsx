@@ -101,7 +101,7 @@ export function AdminClient({ users }: { users: AdminUserRow[] }) {
                 <table className="w-full text-sm font-body min-w-[860px]">
                   <thead>
                     <tr className="border-b border-edn-mist text-left">
-                      {["Nome", "Cidade", "Confirmação", "Prefs", "Convidados", "Pagamento", "Conteúdo", ""].map((h) => (
+                      {["Nome", "Cidade", "Último acesso", "Confirmação", "Prefs", "Convidados", "Pagamento", "Conteúdo", ""].map((h) => (
                         <th key={h} className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide whitespace-nowrap">
                           {h}
                         </th>
@@ -119,6 +119,12 @@ export function AdminClient({ users }: { users: AdminUserRow[] }) {
 
                         <td className="py-2.5 px-2 text-edn-gray text-xs whitespace-nowrap">
                           {u.city ? `${u.city}${u.state ? `, ${u.state}` : ""}` : "—"}
+                        </td>
+
+                        <td className="py-2.5 px-2 text-edn-gray text-xs whitespace-nowrap">
+                          {u.lastLoginAt
+                            ? new Date(u.lastLoginAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                            : "—"}
                         </td>
 
                         <td className="py-2.5 px-2">

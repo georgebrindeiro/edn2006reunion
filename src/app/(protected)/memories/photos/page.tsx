@@ -8,7 +8,7 @@ export default async function PhotosPage() {
 
   const [photos, classmates] = await Promise.all([
     prisma.memory.findMany({
-      where:   { approved: true, type: "PHOTO", mediaUrl: { not: null } },
+      where:   { approved: true, type: { in: ["PHOTO", "VIDEO"] }, mediaUrl: { not: null } },
       include: {
         user: { select: { fullName: true } },
         tags: { include: { user: { select: { id: true, fullName: true, photoNow: true } } } },
@@ -25,6 +25,7 @@ export default async function PhotosPage() {
   const serialized = photos.map((p) => ({
     id:        p.id,
     mediaUrl:  p.mediaUrl!,
+    mediaType: p.type as "PHOTO" | "VIDEO",
     title:     p.title,
     era:       p.era,
     sortOrder: p.sortOrder,
@@ -50,9 +51,9 @@ export default async function PhotosPage() {
         <p className="text-edn-steel text-xs font-body uppercase tracking-widest mb-1">
           Álbum
         </p>
-        <h1 className="font-display text-edn-navy text-3xl font-bold">Fotos</h1>
+        <h1 className="font-display text-edn-navy text-3xl font-bold">Fotos & Vídeos</h1>
         <p className="text-edn-gray font-body text-sm mt-1">
-          {serialized.length} fotos de toda a nossa história na EDN.
+          {serialized.length} item(ns) de toda a nossa história na EDN.
         </p>
       </div>
       <PhotoAlbumClient

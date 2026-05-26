@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   ComposableMap,
   Geographies,
   Geography,
   Marker,
-  ZoomableGroup,
   useMapContext,
 } from "react-simple-maps";
 import { Plus, Minus } from "lucide-react";
@@ -24,68 +23,59 @@ export interface ClassmatePoint {
   longitude: number | null;
 }
 
+function memberLocationKey(c: ClassmatePoint): string {
+  return [c.city, c.country].filter(Boolean).join(", ");
+}
+
 interface Cluster {
   key: string;
-  city: string;
-  country: string;
   latitude: number;
   longitude: number;
+  locationKeys: string[]; // "City, Country" strings for all members
   members: ClassmatePoint[];
 }
 
-// Geographic clustering threshold in degrees — decreases as zoom increases
-// At zoom 1: ~8°, at zoom 16: ~0.5° (São Paulo/Santos ~0.5° apart → separate at max zoom)
-function clusterThresholdDeg(zoom: number): number {
-  return 8 / zoom;
+// Clustering threshold in degrees — at base scale 148, threshold = BASE_DEG
+// Brasilia↔SP ≈ 7.9°, SP↔Santos ≈ 0.5°; threshold=4 keeps Brasilia separate
+const BASE_DEG = 4;
+
+function clusterThresholdDeg(scale: number): number {
+  return (148 / scale) * BASE_DEG;
 }
 
 function geoDist(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const dLat = lat1 - lat2;
-  const dLon = lon1 - lon2;
+  const dLat = lat1 - lat2, dLon = lon1 - lon2;
   return Math.sqrt(dLat * dLat + dLon * dLon);
 }
 
-function buildClusters(classmates: ClassmatePoint[], zoom: number): Cluster[] {
-  const threshold = clusterThresholdDeg(zoom);
+function buildClusters(classmates: ClassmatePoint[], scale: number): Cluster[] {
+  const threshold = clusterThresholdDeg(scale);
   const clusters: Cluster[] = [];
-
   for (const c of classmates) {
     if (c.latitude == null || c.longitude == null) continue;
-
-    // Find nearest existing cluster within threshold
     let best: Cluster | null = null;
     let bestDist = Infinity;
     for (const cl of clusters) {
       const d = geoDist(c.latitude, c.longitude, cl.latitude, cl.longitude);
-      if (d < threshold && d < bestDist) {
-        bestDist = d;
-        best = cl;
-      }
+      if (d < threshold && d < bestDist) { bestDist = d; best = cl; }
     }
-
     if (best) {
       best.members.push(c);
-      // Update centroid (average)
+      const locKey = memberLocationKey(c);
+      if (locKey && !best.locationKeys.includes(locKey)) best.locationKeys.push(locKey);
       const n = best.members.length;
       best.latitude  = best.members.reduce((s, m) => s + m.latitude!,  0) / n;
       best.longitude = best.members.reduce((s, m) => s + m.longitude!, 0) / n;
     } else {
       clusters.push({
-        key:       `${c.latitude},${c.longitude}`,
-        city:      c.city    ?? "Desconhecida",
-        country:   c.country ?? "",
-        latitude:  c.latitude,
-        longitude: c.longitude,
-        members:   [c],
+        key: `${c.latitude},${c.longitude}`,
+        latitude: c.latitude, longitude: c.longitude,
+        locationKeys: memberLocationKey(c) ? [memberLocationKey(c)] : [],
+        members: [c],
       });
     }
   }
-
   return clusters;
-}
-
-function clusterLocationKey(cluster: Cluster): string {
-  return cluster.members.map((m) => m.id).sort().join("|");
 }
 
 function getInitials(name: string | null): string {
@@ -93,23 +83,22 @@ function getInitials(name: string | null): string {
   return name.split(" ").filter(Boolean).map((n) => n[0]).slice(0, 2).join("").toUpperCase();
 }
 
-const BASE_AVATAR_R = 14;
+const AVATAR_R = 14;
 const RINGS = [50, 85, 120, 160, 200].map((r) => ({
-  r,
-  capacity: Math.floor((2 * Math.PI * r) / (2 * BASE_AVATAR_R + 5)),
+  r, capacity: Math.floor((2 * Math.PI * r) / (2 * AVATAR_R + 5)),
 }));
 
-function getAvatarPositions(count: number): { x: number; y: number }[] {
+function getAvatarPositions(count: number) {
   const positions: { x: number; y: number }[] = [];
-  let remaining = count;
+  let rem = count;
   for (const ring of RINGS) {
-    if (remaining <= 0) break;
-    const inRing = Math.min(remaining, ring.capacity);
+    if (rem <= 0) break;
+    const inRing = Math.min(rem, ring.capacity);
     for (let i = 0; i < inRing; i++) {
       const angle = (i / inRing) * 2 * Math.PI - Math.PI / 2;
       positions.push({ x: Math.cos(angle) * ring.r, y: Math.sin(angle) * ring.r });
     }
-    remaining -= inRing;
+    rem -= inRing;
   }
   return positions;
 }
@@ -125,50 +114,48 @@ function getUsedRings(count: number): number[] {
   return used;
 }
 
-function ConcentricOverlay({ cluster, zoom }: { cluster: Cluster; zoom: number }) {
+function ConcentricOverlay({ cluster, onClick }: {
+  cluster: Cluster; onClick: () => void;
+}) {
   const { projection } = useMapContext();
   const coords = projection([cluster.longitude, cluster.latitude]);
   if (!coords) return null;
   const [cx, cy] = coords;
 
-  // Scale avatar sizes inversely with zoom so they stay a consistent screen size
-  const avatarR   = BASE_AVATAR_R / zoom;
-  const ringScale = 1 / zoom;
-
   const count     = cluster.members.length;
-  const positions = getAvatarPositions(count).map((p) => ({ x: p.x * ringScale, y: p.y * ringScale }));
-  const usedRings = getUsedRings(count).map((r) => r * ringScale);
-  const outerR    = (usedRings[usedRings.length - 1] ?? 30 * ringScale) + avatarR + 6 / zoom;
+  const positions = getAvatarPositions(count);
+  const usedRings = getUsedRings(count);
+  const outerR    = (usedRings[usedRings.length - 1] ?? 30) + AVATAR_R + 6;
 
   return (
-    <g transform={`translate(${cx}, ${cy})`} style={{ pointerEvents: "none" }}>
+    <g transform={`translate(${cx}, ${cy})`}>
+      <circle r={outerR + 10} fill="transparent" style={{ cursor: "pointer" }} onClick={onClick} />
       <circle cx={0} cy={0} r={outerR} fill="rgba(255,255,255,0.72)" />
-
       {usedRings.map((r, i) => (
-        <circle key={i} cx={0} cy={0} r={r} fill="none" stroke="#c8d8e8" strokeWidth={1 / zoom} strokeDasharray={`${4 / zoom} ${4 / zoom}`} />
+        <circle key={i} cx={0} cy={0} r={r} fill="none" stroke="#c8d8e8" strokeWidth={1} strokeDasharray="4 4" />
       ))}
 
       {cluster.members.map((c, i) => {
         if (i >= positions.length) return null;
         const { x, y } = positions[i];
         return (
-          <g key={c.id} transform={`translate(${x},${y})`} style={{ pointerEvents: "all", cursor: "default" }}>
+          <g key={c.id} transform={`translate(${x},${y})`} style={{ pointerEvents: "none" }}>
             <title>{c.fullName ?? "?"}</title>
             <defs>
-              <clipPath id={`wm-clip-${c.id}`}>
-                <circle cx={0} cy={0} r={avatarR} />
-              </clipPath>
+              <clipPath id={`wm-clip-${c.id}`}><circle cx={0} cy={0} r={AVATAR_R} /></clipPath>
             </defs>
             {c.photoNow ? (
               <>
-                <image href={c.photoNow} x={-avatarR} y={-avatarR} width={avatarR * 2} height={avatarR * 2} clipPath={`url(#wm-clip-${c.id})`} preserveAspectRatio="xMidYMid slice" />
-                <circle cx={0} cy={0} r={avatarR} fill="none" stroke="white" strokeWidth={1.5 / zoom} />
+                <image href={c.photoNow} x={-AVATAR_R} y={-AVATAR_R} width={AVATAR_R * 2} height={AVATAR_R * 2}
+                  clipPath={`url(#wm-clip-${c.id})`} preserveAspectRatio="xMidYMid slice" />
+                <circle cx={0} cy={0} r={AVATAR_R} fill="none" stroke="white" strokeWidth={1.5} />
               </>
             ) : (
               <>
-                <circle cx={0} cy={0} r={avatarR} fill="#8aa0b8" />
-                <circle cx={0} cy={0} r={avatarR} fill="none" stroke="white" strokeWidth={1.5 / zoom} />
-                <text textAnchor="middle" dominantBaseline="middle" style={{ fontSize: `${8 / zoom}px`, fill: "white", fontWeight: "600", fontFamily: "sans-serif" }}>
+                <circle cx={0} cy={0} r={AVATAR_R} fill="#8aa0b8" />
+                <circle cx={0} cy={0} r={AVATAR_R} fill="none" stroke="white" strokeWidth={1.5} />
+                <text textAnchor="middle" dominantBaseline="middle"
+                  style={{ fontSize: "8px", fill: "white", fontWeight: "600", fontFamily: "sans-serif" }}>
                   {getInitials(c.fullName)}
                 </text>
               </>
@@ -177,11 +164,10 @@ function ConcentricOverlay({ cluster, zoom }: { cluster: Cluster; zoom: number }
         );
       })}
 
-      {/* Center pin */}
-      <circle r={count === 1 ? 6 / zoom : 9 / zoom} fill="#2a3d6a" stroke="white" strokeWidth={1.5 / zoom} />
+      <circle r={count === 1 ? 6 : 9} fill="#2a3d6a" stroke="white" strokeWidth={1.5} style={{ pointerEvents: "none" }} />
       {count > 1 && (
         <text textAnchor="middle" dominantBaseline="middle"
-          style={{ fontSize: count >= 10 ? `${5 / zoom}px` : `${6 / zoom}px`, fill: "white", fontWeight: "700", fontFamily: "sans-serif" }}>
+          style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white", fontWeight: "700", fontFamily: "sans-serif", pointerEvents: "none" }}>
           {count}
         </text>
       )}
@@ -189,127 +175,147 @@ function ConcentricOverlay({ cluster, zoom }: { cluster: Cluster; zoom: number }
   );
 }
 
-const ZOOM_STEPS = [1, 2, 4, 8, 16];
-const DEFAULT_ZOOM_IDX = 0;
+const ZOOM_STEPS: number[] = [148, 296, 592, 1184, 2368];
+const DEFAULT_CENTER: [number, number] = [15, 5];
 
 export function WorldMap({
   classmates,
   total,
   activeCities,
-  onCityToggle,
+  onCitiesToggle,
 }: {
   classmates: ClassmatePoint[];
   total: number;
   activeCities: Set<string>;
-  onCityToggle: (city: string) => void;
+  onCitiesToggle: (keys: string[]) => void;
 }) {
-  const [zoomIdx,  setZoomIdx]  = useState(DEFAULT_ZOOM_IDX);
-  const [center,   setCenter]   = useState<[number, number]>([15, 5]);
+  const [zoomIdx,   setZoomIdx]   = useState(0);
+  const [center,    setCenter]    = useState<[number, number]>(DEFAULT_CENTER);
+  const [dragging,  setDragging]  = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; center: [number, number] } | null>(null);
+  const [didDrag,   setDidDrag]   = useState(false);
 
-  const zoom     = ZOOM_STEPS[zoomIdx];
-  const clusters = buildClusters(classmates, zoom);
+  const scale    = ZOOM_STEPS[zoomIdx];
+  const clusters = buildClusters(classmates, scale);
   const withLocation = classmates.filter((c) => c.latitude != null).length;
 
+  // degrees per CSS pixel (approximate for 800px-wide map at current scale)
+  const degPerPx = 360 / (scale * Math.PI / 180 * 800 / 360) / 5;
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    setDragging(true);
+    setDidDrag(false);
+    setDragStart({ x: e.clientX, y: e.clientY, center: [...center] as [number, number] });
+  }, [center]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragStart) return;
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) setDidDrag(true);
+    const lonDelta = -dx * degPerPx;
+    const latDelta =  dy * degPerPx;
+    setCenter([
+      dragStart.center[0] + lonDelta,
+      Math.max(-80, Math.min(80, dragStart.center[1] + latDelta)),
+    ]);
+  }, [dragStart, degPerPx]);
+
+  const handleMouseUp = useCallback(() => {
+    setDragging(false);
+    setDragStart(null);
+    // reset didDrag after a short delay so click handlers can check it
+    setTimeout(() => setDidDrag(false), 50);
+  }, []);
+
+  function handleClusterClick(cluster: Cluster) {
+    if (didDrag) return;
+    // Toggle: if any key already active → remove all; otherwise add all
+    const anyActive = cluster.locationKeys.some((k) => activeCities.has(k));
+    if (anyActive) {
+      // Deselect all member location keys
+      onCitiesToggle(cluster.locationKeys.map((k) => `-${k}`));
+    } else {
+      onCitiesToggle(cluster.locationKeys);
+    }
+  }
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm relative" style={{ overflow: "visible" }}>
+    <div
+      className="bg-white rounded-2xl shadow-sm relative select-none"
+      style={{ overflow: "hidden", cursor: dragging ? "grabbing" : "grab" }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={dragging ? handleMouseMove : undefined}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
       <ComposableMap
         width={800}
         height={430}
-        projectionConfig={{ scale: 148, center: [15, 5] }}
-        style={{ width: "100%", height: "auto", overflow: "visible" } as React.CSSProperties}
+        projectionConfig={{ scale, center }}
+        style={{ width: "100%", height: "auto" } as React.CSSProperties}
       >
-        <ZoomableGroup
-          zoom={zoom}
-          center={center}
-          onMoveEnd={({ coordinates }) => setCenter(coordinates as [number, number])}
-          minZoom={1}
-          maxZoom={16}
-        >
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map((geo) => (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  fill="#e8f0f8"
-                  stroke="#c8d8e8"
-                  strokeWidth={0.5}
-                  style={{
-                    default: { outline: "none" },
-                    hover:   { outline: "none", fill: "#dbeaf5" },
-                    pressed: { outline: "none" },
-                  }}
-                />
-              ))
-            }
-          </Geographies>
+        <Geographies geography={GEO_URL}>
+          {({ geographies }) =>
+            geographies.map((geo) => (
+              <Geography key={geo.rsmKey} geography={geo}
+                fill="#e8f0f8" stroke="#c8d8e8" strokeWidth={0.5}
+                style={{
+                  default: { outline: "none" },
+                  hover:   { outline: "none", fill: "#dbeaf5" },
+                  pressed: { outline: "none" },
+                }}
+              />
+            ))
+          }
+        </Geographies>
 
-          {clusters.map((cluster) => {
-            const locKey   = clusterLocationKey(cluster);
-            const isActive = activeCities.has(locKey);
-            const count    = cluster.members.length;
-            const pinR     = (count === 1 ? 6 : 9) / zoom;
-            const hitR     = (count === 1 ? 10 : 14) / zoom;
-            return (
-              <Marker
-                key={cluster.key}
-                coordinates={[cluster.longitude, cluster.latitude]}
-                onClick={() => onCityToggle(locKey)}
-              >
-                {!isActive && (
-                  <>
-                    <circle
-                      r={pinR}
-                      fill="#1a2744"
-                      stroke="white"
-                      strokeWidth={1.5 / zoom}
-                      className="cursor-pointer"
-                    />
-                    {count > 1 && (
-                      <text textAnchor="middle" dominantBaseline="middle"
-                        style={{ fontSize: count >= 10 ? `${5 / zoom}px` : `${6 / zoom}px`, fill: "white", fontWeight: "700", fontFamily: "sans-serif", pointerEvents: "none" }}>
-                        {count}
-                      </text>
-                    )}
-                  </>
-                )}
-                {isActive && (
-                  <circle r={hitR} fill="transparent" className="cursor-pointer" />
-                )}
-              </Marker>
-            );
-          })}
+        {/* Collapsed pins */}
+        {clusters.map((cluster) => {
+          const isActive = cluster.locationKeys.some((k) => activeCities.has(k));
+          const count    = cluster.members.length;
+          if (isActive) return null;
+          return (
+            <Marker key={cluster.key} coordinates={[cluster.longitude, cluster.latitude]}
+              onClick={() => handleClusterClick(cluster)}>
+              <circle r={count === 1 ? 6 : 9} fill="#1a2744" stroke="white" strokeWidth={1.5} className="cursor-pointer" />
+              {count > 1 && (
+                <text textAnchor="middle" dominantBaseline="middle"
+                  style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white", fontWeight: "700", fontFamily: "sans-serif", pointerEvents: "none" }}>
+                  {count}
+                </text>
+              )}
+            </Marker>
+          );
+        })}
 
-          {clusters
-            .filter((c) => activeCities.has(clusterLocationKey(c)))
-            .map((cluster) => (
-              <ConcentricOverlay key={`overlay-${cluster.key}`} cluster={cluster} zoom={zoom} />
-            ))}
-        </ZoomableGroup>
+        {/* Expanded overlays */}
+        {clusters
+          .filter((c) => c.locationKeys.some((k) => activeCities.has(k)))
+          .map((cluster) => (
+            <ConcentricOverlay key={`overlay-${cluster.key}`} cluster={cluster}
+              onClick={() => handleClusterClick(cluster)} />
+          ))}
       </ComposableMap>
 
-      {/* Zoom controls — bottom right */}
-      <div className="absolute bottom-3 right-3 flex flex-col gap-1">
-        <button
-          onClick={() => setZoomIdx((i) => Math.min(i + 1, ZOOM_STEPS.length - 1))}
+      {/* Zoom controls */}
+      <div className="absolute bottom-3 right-3 flex flex-col gap-1 z-10">
+        <button onClick={() => setZoomIdx((i) => Math.min(i + 1, ZOOM_STEPS.length - 1))}
           disabled={zoomIdx === ZOOM_STEPS.length - 1}
           className="w-8 h-8 bg-white border border-edn-mist rounded-lg shadow-sm flex items-center justify-center text-edn-navy hover:bg-edn-cloud disabled:opacity-40 transition-colors"
-          aria-label="Zoom in"
-        >
+          onMouseDown={(e) => e.stopPropagation()}>
           <Plus size={14} />
         </button>
-        <button
-          onClick={() => setZoomIdx((i) => Math.max(i - 1, 0))}
+        <button onClick={() => setZoomIdx((i) => Math.max(i - 1, 0))}
           disabled={zoomIdx === 0}
           className="w-8 h-8 bg-white border border-edn-mist rounded-lg shadow-sm flex items-center justify-center text-edn-navy hover:bg-edn-cloud disabled:opacity-40 transition-colors"
-          aria-label="Zoom out"
-        >
+          onMouseDown={(e) => e.stopPropagation()}>
           <Minus size={14} />
         </button>
       </div>
 
       {withLocation < total && (
-        <p className="text-center text-edn-gray text-xs font-body pb-2 px-4">
+        <p className="text-center text-edn-gray text-xs font-body py-2 px-4">
           {withLocation} de {total} com localização ·{" "}
           <span className="text-edn-steel">Atualize seu perfil para aparecer</span>
         </p>
