@@ -20,6 +20,7 @@ model User {
   role            Role      @default(MEMBER)
   lastLoginAt     DateTime?
   previousLoginAt DateTime?
+  lastActiveAt    DateTime?
 
   // Profile
   fullName      String?
@@ -31,6 +32,9 @@ model User {
   latitude      Float?
   longitude     Float?
   studyPeriods  StudyPeriod[]
+
+  // Social
+  linkedinUrl   String?
 
   // Then & Now photos
   photoThen     String?   // URL — old school photo

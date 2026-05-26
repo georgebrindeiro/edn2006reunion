@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { Nav } from "@/components/layout/Nav";
+import { ActivityPing } from "@/components/ActivityPing";
 
 export default async function ProtectedLayout({
   children,
@@ -18,6 +19,7 @@ export default async function ProtectedLayout({
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <Nav isAdmin={isAdmin} />
+      <ActivityPing />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         {children}
       </main>

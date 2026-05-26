@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
 
   const {
     fullName, birthday, phone: rawPhone,
-    city, state, country,
+    city, state, country, linkedinUrl,
     photoThen, photoNow,
     studyPeriods,
   } = await req.json();
@@ -51,9 +51,10 @@ export async function POST(req: NextRequest) {
       city,
       state,
       country,
-      photoThen: photoThen ?? null,
-      photoNow:  photoNow  ?? null,
-      birthday:  birthday ? new Date(birthday) : null,
+      linkedinUrl: linkedinUrl ?? null,
+      photoThen:   photoThen  ?? null,
+      photoNow:    photoNow   ?? null,
+      birthday:    birthday ? new Date(birthday) : null,
       ...geoData,
     },
   });

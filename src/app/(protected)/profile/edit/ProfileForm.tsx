@@ -19,6 +19,7 @@ interface UserData {
   city?:        string;
   state?:       string;
   country?:     string;
+  linkedinUrl?: string;
   photoThen?:   string;
   photoNow?:    string;
   studyPeriods: StudyPeriod[];
@@ -45,7 +46,8 @@ export function ProfileForm({
   const [phone,    setPhone]    = useState(user?.phone   ?? "");
   const [city,     setCity]     = useState(user?.city    ?? "");
   const [state,    setState]    = useState(user?.state   ?? "");
-  const [country,  setCountry]  = useState(user?.country ?? "Brasil");
+  const [country,     setCountry]     = useState(user?.country     ?? "Brasil");
+  const [linkedinUrl, setLinkedinUrl] = useState(user?.linkedinUrl ?? "");
   const [photoThen, setPhotoThen] = useState(user?.photoThen ?? "");
   const [photoNow,  setPhotoNow]  = useState(user?.photoNow  ?? "");
   const [periods,  setPeriods]  = useState<StudyPeriod[]>(
@@ -97,7 +99,7 @@ export function ProfileForm({
     const res = await fetch(apiEndpoint, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullName, birthday, phone, city, state, country, photoThen, photoNow, studyPeriods: periods }),
+      body: JSON.stringify({ fullName, birthday, phone, city, state, country, linkedinUrl, photoThen, photoNow, studyPeriods: periods }),
     });
 
     if (res.ok) { setSaved(true); router.refresh(); onSaved?.(); }
@@ -161,6 +163,17 @@ export function ProfileForm({
       <div>
         <label className={labelClass}>País</label>
         <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Brasil" className={inputClass} />
+      </div>
+
+      <div>
+        <label className={labelClass}>LinkedIn (opcional)</label>
+        <input
+          value={linkedinUrl}
+          onChange={(e) => setLinkedinUrl(e.target.value)}
+          placeholder="https://linkedin.com/in/seu-perfil"
+          className={inputClass}
+          type="url"
+        />
       </div>
 
       <fieldset className="space-y-3 pt-1">

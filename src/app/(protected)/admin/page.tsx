@@ -40,7 +40,7 @@ export default async function AdminPage() {
     city:        u.city,
     state:       u.state,
     country:     u.country,
-    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    lastActiveAt: u.lastActiveAt?.toISOString() ?? null,
     rsvp:        u.rsvp,
     metrics: {
       photos:        memMap[u.id]?.PHOTO ?? 0,
