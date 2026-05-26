@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { ProfileForm } from "./ProfileForm";
-import { MyContributions } from "@/components/MyContributions";
+import { ProfilePageClient } from "./ProfilePageClient";
 
 export default async function ProfileEditPage() {
   const session = await auth();
@@ -15,9 +14,20 @@ export default async function ProfileEditPage() {
     orderBy: { createdAt: "desc" },
   });
 
+  const serializedMemories = myMemories.map((m) => ({
+    id:        m.id,
+    type:      m.type,
+    title:     m.title,
+    content:   m.content,
+    era:       m.era,
+    mediaUrl:  m.mediaUrl,
+    approved:  m.approved,
+    createdAt: m.createdAt.toISOString(),
+  }));
+
   return (
-    <div className="max-w-lg mx-auto space-y-8">
-      <div>
+    <div>
+      <div className="max-w-lg mx-auto mb-6">
         <p className="text-edn-steel text-xs font-body uppercase tracking-widest mb-1">
           Seu perfil
         </p>
@@ -29,16 +39,7 @@ export default async function ProfileEditPage() {
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <ProfileForm user={user as any} />
-      </div>
-
-      <div>
-        <h2 className="font-display text-edn-navy text-xl font-semibold mb-4">
-          Minhas Contribuições
-        </h2>
-        <MyContributions initialMemories={myMemories as any} />
-      </div>
+      <ProfilePageClient user={user as any} memories={serializedMemories} />
     </div>
   );
 }
