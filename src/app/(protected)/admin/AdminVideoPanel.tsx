@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, AlertTriangle, CheckCircle2, RefreshCw, Play, X, RefreshCcw, Copy, Check } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, RefreshCw, Play, X, RefreshCcw, Copy, Check, Download } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { detectVideoCodecFromUrl, codecNeedsTranscode, transcodeToH264 } from "@/lib/video-compat";
 
@@ -117,6 +117,24 @@ export function AdminVideoPanel() {
   const incompatibleCount = videos.filter((v) => v.compatStatus === "incompatible").length;
   const checkedCount      = videos.filter((v) => v.compatStatus !== "idle").length;
 
+  function exportCsv() {
+    const rows = [
+      ["Pasta", "Nome do arquivo", "Data de upload", "Usuário"],
+      ...videos.map((v) => [
+        v.entry.title   ?? "",
+        v.entry.fileName ?? "",
+        new Date(v.entry.createdAt).toLocaleString("pt-BR"),
+        v.entry.userName ?? "",
+      ]),
+    ];
+    const csv  = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "videos-admin.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-edn-gray text-sm font-body py-8">
@@ -140,14 +158,22 @@ export function AdminVideoPanel() {
               {checkedCount > 0 && ` · ${checkedCount} verificados · ${incompatibleCount} incompatíveis`}
             </p>
           </div>
-          <button
-            onClick={checking ? () => { abortRef.current = true; setChecking(false); } : checkAll}
-            className="flex items-center gap-1.5 text-xs font-body font-semibold px-3 py-1.5 rounded-lg border border-edn-mist hover:border-edn-steel transition-colors text-edn-navy"
-          >
-            {checking
-              ? <><Loader2 size={12} className="animate-spin" /> Parar</>
-              : <><RefreshCw size={12} /> Verificar codecs</>}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportCsv}
+              className="flex items-center gap-1.5 text-xs font-body font-semibold px-3 py-1.5 rounded-lg border border-edn-mist hover:border-edn-steel transition-colors text-edn-navy"
+            >
+              <Download size={12} /> Exportar CSV
+            </button>
+            <button
+              onClick={checking ? () => { abortRef.current = true; setChecking(false); } : checkAll}
+              className="flex items-center gap-1.5 text-xs font-body font-semibold px-3 py-1.5 rounded-lg border border-edn-mist hover:border-edn-steel transition-colors text-edn-navy"
+            >
+              {checking
+                ? <><Loader2 size={12} className="animate-spin" /> Parar</>
+                : <><RefreshCw size={12} /> Verificar codecs</>}
+            </button>
+          </div>
         </div>
 
         {/* Video list */}
