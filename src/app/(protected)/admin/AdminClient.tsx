@@ -125,7 +125,11 @@ export function AdminClient({ users }: { users: AdminUserRow[] }) {
 
                         <td className="py-2.5 px-2 text-edn-gray text-xs whitespace-nowrap">
                           {u.lastActiveAt
-                            ? new Date(u.lastActiveAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                            ? new Date(u.lastActiveAt).toLocaleString("pt-BR", {
+                                day: "2-digit", month: "2-digit", year: "2-digit",
+                                hour: "2-digit", minute: "2-digit",
+                                timeZone: "America/Sao_Paulo",
+                              })
                             : "—"}
                         </td>
 
