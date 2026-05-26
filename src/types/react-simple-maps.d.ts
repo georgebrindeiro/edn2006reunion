@@ -39,6 +39,12 @@ declare module "react-simple-maps" {
   export function ZoomableGroup(props: {
     center?: [number, number];
     zoom?: number;
+    minZoom?: number;
+    maxZoom?: number;
+    translateExtent?: [[number, number], [number, number]];
+    onMoveEnd?: (position: { coordinates: [number, number]; zoom: number }) => void;
+    onMoveStart?: (position: { coordinates: [number, number]; zoom: number }) => void;
+    onMove?: (position: { x: number; y: number; k: number; dragging: boolean }) => void;
     children?: ReactNode;
   }): JSX.Element;
 

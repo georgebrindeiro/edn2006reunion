@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Loader2, Plus, Image as ImageIcon, Quote, BookOpen, X, Upload, Check,
+  FolderOpen, AlertCircle,
 } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { MEMORY_ERAS, type MemoryEra } from "@/lib/memory-eras";
@@ -11,10 +12,12 @@ type MemoryType = "QUOTE" | "STORY" | "PHOTO";
 
 interface PendingPhoto {
   file: File;
+  fileKey: string; // name+size dedup key
   preview: string;
   url: string | null;
   era: MemoryEra | null;
   title: string;
+  uploadError: boolean;
 }
 
 const TYPE_OPTIONS: { val: MemoryType; label: string; icon: React.ElementType }[] = [
@@ -22,6 +25,10 @@ const TYPE_OPTIONS: { val: MemoryType; label: string; icon: React.ElementType }[
   { val: "QUOTE", label: "Citação",   icon: Quote     },
   { val: "STORY", label: "História",  icon: BookOpen  },
 ];
+
+function fileKey(file: File) {
+  return `${file.name}__${file.size}`;
+}
 
 export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
   const [open,    setOpen]    = useState(false);
@@ -35,32 +42,66 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
   const [done,    setDone]    = useState(false);
 
   // Bulk photo state
-  const [photos,       setPhotos]       = useState<PendingPhoto[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<string>("");
+  const [photos,         setPhotos]         = useState<PendingPhoto[]>([]);
+  const [batchLabel,     setBatchLabel]     = useState("");
+  const [uploadingIdx,   setUploadingIdx]   = useState<number | null>(null);
+  const [uploadedCount,  setUploadedCount]  = useState(0);
+  const seenKeys = useRef<Set<string>>(new Set());
 
   const { startUpload } = useUploadThing("memoryMedia");
 
   function resetForm() {
     setType("PHOTO"); setTitle(""); setContent(""); setAuthor(""); setEra(null);
-    setPhotos([]); setUploadProgress(""); setError(""); setDone(false);
+    setPhotos([]); setBatchLabel(""); setUploadingIdx(null); setUploadedCount(0);
+    setError(""); setDone(false);
+    seenKeys.current = new Set();
   }
 
   function handleClose() { setOpen(false); resetForm(); }
 
-  function addFiles(files: FileList | null) {
+  function addFiles(files: FileList | null, fromFolder?: string) {
     if (!files) return;
-    const newPhotos: PendingPhoto[] = Array.from(files).map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-      url: null,
-      era: null,
-      title: "",
-    }));
+    const newPhotos: PendingPhoto[] = [];
+    let detectedFolder = fromFolder ?? "";
+
+    for (const file of Array.from(files)) {
+      const k = fileKey(file);
+      if (seenKeys.current.has(k)) continue; // deduplicate
+      seenKeys.current.add(k);
+
+      // Extract folder name from webkitRelativePath if available
+      if (!detectedFolder && (file as any).webkitRelativePath) {
+        const parts = ((file as any).webkitRelativePath as string).split("/");
+        if (parts.length > 1) detectedFolder = parts[0];
+      }
+
+      newPhotos.push({
+        file,
+        fileKey: k,
+        preview: URL.createObjectURL(file),
+        url: null,
+        era: null,
+        title: detectedFolder,
+        uploadError: false,
+      });
+    }
+
+    if (detectedFolder && !batchLabel) setBatchLabel(detectedFolder);
+
     setPhotos((prev) => [...prev, ...newPhotos]);
   }
 
+  function applyBatchLabel(label: string) {
+    setBatchLabel(label);
+    setPhotos((prev) => prev.map((p) => ({ ...p, title: label })));
+  }
+
   function removePhoto(idx: number) {
-    setPhotos((prev) => prev.filter((_, i) => i !== idx));
+    setPhotos((prev) => {
+      const removed = prev[idx];
+      seenKeys.current.delete(removed.fileKey);
+      return prev.filter((_, i) => i !== idx);
+    });
   }
 
   function setPhotoEra(idx: number, era: MemoryEra | null) {
@@ -71,33 +112,36 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
     setPhotos((prev) => prev.map((p, i) => i === idx ? { ...p, title } : p));
   }
 
-  // Upload one file at a time to avoid bulk-presign issues
   async function uploadPendingPhotos(): Promise<PendingPhoto[]> {
     const toUpload = photos.filter((p) => p.url === null);
     if (toUpload.length === 0) return photos;
 
     const uploaded = [...photos];
-    let failed = 0;
+    let done = 0;
 
     for (let i = 0; i < toUpload.length; i++) {
-      setUploadProgress(`Enviando foto ${i + 1} de ${toUpload.length}…`);
       const photo = toUpload[i];
+      const uploadedIdx = uploaded.findIndex((p) => p.fileKey === photo.fileKey);
+      setUploadingIdx(i);
+
       try {
         const res = await startUpload([photo.file]);
         const url = res?.[0]?.ufsUrl ?? res?.[0]?.url ?? null;
         if (url) {
-          const idx = uploaded.findIndex((p) => p.file === photo.file);
-          if (idx !== -1) uploaded[idx] = { ...uploaded[idx], url };
+          if (uploadedIdx !== -1) uploaded[uploadedIdx] = { ...uploaded[uploadedIdx], url, uploadError: false };
+          done++;
+          setUploadedCount(done);
         } else {
-          failed++;
+          if (uploadedIdx !== -1) uploaded[uploadedIdx] = { ...uploaded[uploadedIdx], uploadError: true };
         }
       } catch {
-        failed++;
+        if (uploadedIdx !== -1) uploaded[uploadedIdx] = { ...uploaded[uploadedIdx], uploadError: true };
       }
     }
 
-    setUploadProgress("");
-    if (failed > 0) setError(`${failed} foto(s) não foram enviadas. Tente novamente.`);
+    setUploadingIdx(null);
+    const failed = uploaded.filter((p) => p.uploadError).length;
+    if (failed > 0) setError(`${failed} foto(s) não foram enviadas. Clique em Publicar para tentar novamente.`);
     return uploaded;
   }
 
@@ -108,10 +152,13 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
     if (type === "PHOTO") {
       if (photos.length === 0) { setError("Adicione pelo menos uma foto."); return; }
       setLoading(true);
+      setUploadedCount(0);
       const uploaded = await uploadPendingPhotos();
       const items = uploaded
         .filter((p) => p.url)
         .map((p) => ({ mediaUrl: p.url!, era: p.era, title: p.title || null }));
+
+      if (items.length === 0) { setLoading(false); return; }
 
       const res = await fetch("/api/memories", {
         method: "POST",
@@ -136,6 +183,12 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
     onSuccess?.();
     setTimeout(() => { handleClose(); }, 1800);
   }
+
+  const isUploading = uploadingIdx !== null;
+  const totalToUpload = photos.filter((p) => p.url === null && !p.uploadError).length;
+  const progressLabel = isUploading
+    ? `Enviando ${uploadingIdx! + 1} de ${photos.filter((p) => p.url === null).length}…`
+    : "";
 
   if (!open) {
     return (
@@ -184,61 +237,144 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
           {/* Photo bulk upload */}
           {type === "PHOTO" && (
             <div className="space-y-3">
-              {/* Drop zone */}
-              <label className="flex flex-col items-center gap-2 p-6 rounded-xl border-2 border-dashed border-edn-mist hover:border-edn-navy hover:bg-edn-cloud/30 cursor-pointer transition-all">
-                <Upload size={22} className="text-edn-steel" />
-                <div className="text-center">
-                  <p className="text-edn-navy text-sm font-body font-medium">Clique para adicionar fotos</p>
-                  <p className="text-edn-gray text-xs font-body mt-0.5">Até 30 fotos · 16 MB cada</p>
+              {/* Drop zones row */}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-edn-mist hover:border-edn-navy hover:bg-edn-cloud/30 cursor-pointer transition-all">
+                  <Upload size={18} className="text-edn-steel" />
+                  <div className="text-center">
+                    <p className="text-edn-navy text-xs font-body font-medium">Selecionar fotos</p>
+                    <p className="text-edn-gray text-[10px] font-body mt-0.5">Múltiplos arquivos</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => addFiles(e.target.files)}
+                  />
+                </label>
+
+                <label className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-edn-mist hover:border-edn-navy hover:bg-edn-cloud/30 cursor-pointer transition-all">
+                  <FolderOpen size={18} className="text-edn-steel" />
+                  <div className="text-center">
+                    <p className="text-edn-navy text-xs font-body font-medium">Selecionar pasta</p>
+                    <p className="text-edn-gray text-[10px] font-body mt-0.5">Toda a pasta de uma vez</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    // @ts-expect-error – non-standard but widely supported
+                    webkitdirectory=""
+                    mozdirectory=""
+                    onChange={(e) => addFiles(e.target.files)}
+                  />
+                </label>
+              </div>
+
+              {/* Batch label */}
+              {photos.length > 0 && (
+                <div>
+                  <label className="block text-xs font-body font-medium text-edn-gray uppercase tracking-wider mb-1">
+                    Legenda para todas as fotos
+                  </label>
+                  <input
+                    value={batchLabel}
+                    onChange={(e) => applyBatchLabel(e.target.value)}
+                    placeholder="Ex: Viagem de formatura 2009 (opcional)"
+                    className="w-full text-sm font-body border border-edn-mist rounded-lg px-3 py-2 focus:outline-none focus:border-edn-steel"
+                  />
+                  <p className="text-[10px] text-edn-gray/60 font-body mt-0.5">
+                    Preenche automaticamente a legenda de todas as fotos
+                  </p>
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => addFiles(e.target.files)}
-                />
-              </label>
+              )}
+
+              {/* Progress bar */}
+              {isUploading && totalToUpload > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] font-body text-edn-gray">
+                    <span>{progressLabel}</span>
+                    <span>{uploadedCount} / {photos.length} enviadas</span>
+                  </div>
+                  <div className="h-1.5 bg-edn-mist rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-edn-navy rounded-full transition-all duration-300"
+                      style={{ width: `${Math.round((uploadedCount / photos.length) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Photo grid with tagging */}
               {photos.length > 0 && (
-                <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-                  {photos.map((photo, idx) => (
-                    <div key={idx} className="flex gap-3 bg-edn-cloud/30 rounded-xl p-2.5">
-                      <img
-                        src={photo.preview}
-                        alt=""
-                        className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0 space-y-2">
-                        <input
-                          value={photo.title}
-                          onChange={(e) => setPhotoTitle(idx, e.target.value)}
-                          placeholder="Legenda (opcional)"
-                          className="w-full text-xs font-body border border-edn-mist rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-edn-steel"
-                        />
-                        <select
-                          value={photo.era ?? ""}
-                          onChange={(e) => setPhotoEra(idx, (e.target.value as MemoryEra) || null)}
-                          className="w-full text-xs font-body border border-edn-mist rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-edn-steel"
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs font-body text-edn-gray">{photos.length} foto(s) selecionada(s)</p>
+                    {photos.some((p) => p.uploadError) && (
+                      <p className="text-xs font-body text-amber-600 flex items-center gap-1">
+                        <AlertCircle size={11} />
+                        {photos.filter((p) => p.uploadError).length} com erro
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                    {photos.map((photo, idx) => (
+                      <div key={photo.fileKey}
+                        className={`flex gap-3 rounded-xl p-2.5 ${photo.uploadError ? "bg-red-50" : photo.url ? "bg-green-50" : "bg-edn-cloud/30"}`}>
+                        <div className="relative flex-shrink-0">
+                          <img
+                            src={photo.preview}
+                            alt=""
+                            className="w-16 h-16 object-cover rounded-lg"
+                          />
+                          {photo.url && (
+                            <div className="absolute inset-0 bg-green-500/20 rounded-lg flex items-center justify-center">
+                              <Check size={14} className="text-green-600" />
+                            </div>
+                          )}
+                          {photo.uploadError && (
+                            <div className="absolute inset-0 bg-red-500/20 rounded-lg flex items-center justify-center">
+                              <AlertCircle size={14} className="text-red-600" />
+                            </div>
+                          )}
+                          {isUploading && uploadingIdx === photos.filter((p) => p.url === null && !p.uploadError).indexOf(photo) && (
+                            <div className="absolute inset-0 bg-black/30 rounded-lg flex items-center justify-center">
+                              <Loader2 size={14} className="animate-spin text-white" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <input
+                            value={photo.title}
+                            onChange={(e) => setPhotoTitle(idx, e.target.value)}
+                            placeholder="Legenda (opcional)"
+                            className="w-full text-xs font-body border border-edn-mist rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-edn-steel bg-white"
+                          />
+                          <select
+                            value={photo.era ?? ""}
+                            onChange={(e) => setPhotoEra(idx, (e.target.value as MemoryEra) || null)}
+                            className="w-full text-xs font-body border border-edn-mist rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-edn-steel"
+                          >
+                            <option value="">Era (opcional)</option>
+                            {MEMORY_ERAS.map((era) => (
+                              <option key={era.value} value={era.value}>
+                                {era.emoji} {era.label} ({era.years})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(idx)}
+                          className="text-edn-gray/40 hover:text-red-400 self-start"
                         >
-                          <option value="">Era (opcional)</option>
-                          {MEMORY_ERAS.map((era) => (
-                            <option key={era.value} value={era.value}>
-                              {era.emoji} {era.label} ({era.years})
-                            </option>
-                          ))}
-                        </select>
+                          <X size={14} />
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removePhoto(idx)}
-                        className="text-edn-gray/40 hover:text-red-400 self-start"
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -284,11 +420,11 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
 
           <button
             type="submit"
-            disabled={loading || !!uploadProgress}
+            disabled={loading || isUploading}
             className="w-full py-2.5 rounded-xl text-sm font-body font-semibold bg-edn-navy text-white hover:bg-edn-navy/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            {(loading || uploadProgress) && <Loader2 size={14} className="animate-spin" />}
-            {uploadProgress || (loading ? "Publicando..." : "Publicar")}
+            {(loading || isUploading) && <Loader2 size={14} className="animate-spin" />}
+            {isUploading ? progressLabel : loading ? "Publicando..." : "Publicar"}
           </button>
         </form>
       )}

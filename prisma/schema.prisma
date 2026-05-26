@@ -42,6 +42,7 @@ model User {
   comments      MemoryComment[]
   memoryTags    MemoryTag[]
   videoMessage  VideoMessage?
+  activityLogs  ActivityLog[]
 
   sessions      Session[]
 }
@@ -171,6 +172,18 @@ model EventConfig {
   pixRecipientName     String   @default("EDN REUNION 2006")
   pixCity              String   @default("BRASILIA")
   whatsIncluded        String[] @default(["Churrasco", "Bebidas não-alcoólicas", "Chopp"])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  action    String   // UPLOAD, EDIT, SOFT_DELETE, RESTORE, BATCH_ERA, BATCH_OWNER, BATCH_REORDER
+  memoryId  String?
+  details   Json?    // { type, title, era, count, etc. }
 }
 
 model InviteToken {

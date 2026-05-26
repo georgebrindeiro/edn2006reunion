@@ -12,7 +12,6 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
-  // Bulk photo creation: { items: [{ mediaUrl, title?, era? }] }
   if (Array.isArray(body.items)) {
     const created = await prisma.memory.createManyAndReturn({
       data: body.items.map((item: { mediaUrl: string; title?: string; era?: string }) => ({
@@ -24,6 +23,15 @@ export async function POST(req: NextRequest) {
       })),
       include: { user: { select: { fullName: true } } },
     });
+
+    await prisma.activityLog.create({
+      data: {
+        userId:  user.id,
+        action:  "UPLOAD",
+        details: { type: "PHOTO", count: created.length },
+      },
+    });
+
     return NextResponse.json(created);
   }
 
@@ -31,6 +39,15 @@ export async function POST(req: NextRequest) {
   const memory = await prisma.memory.create({
     data:    { userId: user.id, type, title, content, mediaUrl, era: era ?? null, author: author ?? null },
     include: { user: { select: { fullName: true } } },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      userId:   user.id,
+      action:   "UPLOAD",
+      memoryId: memory.id,
+      details:  { type, title: title ?? null },
+    },
   });
 
   return NextResponse.json(memory);

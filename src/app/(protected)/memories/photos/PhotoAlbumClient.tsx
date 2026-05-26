@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   X, ChevronLeft, ChevronRight, Tag, GripVertical, Check, Loader2,
-  UserPlus, Users, ChevronDown, Trash2,
+  UserPlus, Users, ChevronDown, Trash2, MessageSquare,
 } from "lucide-react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -52,15 +52,9 @@ function getInitials(name: string | null) {
 
 // ── Person multi-select dropdown ─────────────────────────────────────────────
 function PersonFilterDropdown({
-  people,
-  selected,
-  onToggle,
-  photos,
+  people, selected, onToggle, photos,
 }: {
-  people: TaggedUser[];
-  selected: Set<string>;
-  onToggle: (id: string) => void;
-  photos: Photo[];
+  people: TaggedUser[]; selected: Set<string>; onToggle: (id: string) => void; photos: Photo[];
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -80,9 +74,7 @@ function PersonFilterDropdown({
       <button
         onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1.5 text-xs font-body px-3 py-1.5 rounded-full transition-colors whitespace-nowrap ${
-          selected.size > 0
-            ? "bg-edn-navy text-white"
-            : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
+          selected.size > 0 ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
         }`}
       >
         <Users size={12} />
@@ -140,15 +132,16 @@ function SortableTile({ photo }: { photo: Photo }) {
 }
 
 // ── Tag panel ────────────────────────────────────────────────────────────────
+// Search bar on top, dropdown opens UPWARD, tags listed below the search bar
 function TagPanel({ photo, classmates, onTagsChange }: {
   photo: Photo; classmates: Classmate[]; onTagsChange: (tags: TaggedUser[]) => void;
 }) {
-  const [search, setSearch] = useState("");
+  const [search,  setSearch]  = useState("");
   const [loading, setLoading] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  const taggedIds = new Set(photo.tags.map((t) => t.userId));
+  const taggedIds   = new Set(photo.tags.map((t) => t.userId));
   const suggestions = classmates.filter(
     (c) => !taggedIds.has(c.id) && c.fullName.toLowerCase().includes(search.toLowerCase())
   );
@@ -177,25 +170,15 @@ function TagPanel({ photo, classmates, onTagsChange }: {
   }
 
   return (
-    <div className="space-y-2">
-      {photo.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {photo.tags.map((t) => (
-            <span key={t.userId} className="flex items-center gap-1 bg-white/20 text-white text-xs font-body px-2 py-0.5 rounded-full">
-              {t.fullName ?? "?"}
-              <button onClick={() => removeTag(t.userId)} disabled={loading === t.userId} className="hover:text-red-300 ml-0.5">
-                {loading === t.userId ? <Loader2 size={9} className="animate-spin" /> : <X size={9} />}
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+    <div className="w-full max-w-xs space-y-2">
+      {/* Search input with upward-opening dropdown */}
       <div className="relative">
         <input ref={inputRef} value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar colega..."
+          placeholder="Buscar colega para marcar..."
           className="w-full text-xs font-body bg-white/20 text-white placeholder:text-white/50 border border-white/30 rounded-lg px-3 py-1.5 focus:outline-none focus:border-white/60" />
         {search && suggestions.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-xl z-10 max-h-40 overflow-y-auto py-1">
+          // Dropdown opens UPWARD to avoid bottom overflow
+          <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-xl shadow-xl z-10 max-h-40 overflow-y-auto py-1">
             {suggestions.slice(0, 8).map((c) => (
               <button key={c.id} onClick={() => addTag(c)} disabled={loading === c.id}
                 className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-edn-cloud/60 text-left">
@@ -212,6 +195,20 @@ function TagPanel({ photo, classmates, onTagsChange }: {
           </div>
         )}
       </div>
+
+      {/* Tagged people listed BELOW the search bar */}
+      {photo.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {photo.tags.map((t) => (
+            <span key={t.userId} className="flex items-center gap-1 bg-white/20 text-white text-xs font-body px-2 py-0.5 rounded-full">
+              {t.fullName ?? "?"}
+              <button onClick={() => removeTag(t.userId)} disabled={loading === t.userId} className="hover:text-red-300 ml-0.5">
+                {loading === t.userId ? <Loader2 size={9} className="animate-spin" /> : <X size={9} />}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -228,6 +225,7 @@ export function PhotoAlbumClient({
   const [lightbox,      setLightbox]      = useState<number | null>(null);
   const [taggingEra,    setTaggingEra]    = useState(false);
   const [taggingWho,    setTaggingWho]    = useState(false);
+  const [showComments,  setShowComments]  = useState(false);
   const [reorderItems,  setReorderItems]  = useState<Photo[]>([]);
   const [reordering,    setReordering]    = useState(false);
   const [saving,        setSaving]        = useState(false);
@@ -281,10 +279,14 @@ export function PhotoAlbumClient({
     setTimeout(() => { setSaved(false); setReordering(false); setReorderItems([]); }, 1200);
   }
 
-  const open  = useCallback((idx: number) => { setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); setLightbox(idx); }, []);
-  const close = useCallback(() => { setLightbox(null); setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); }, []);
-  const prev  = useCallback(() => { setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); setLightbox((i) => (i !== null && i > 0 ? i - 1 : i)); }, []);
-  const next  = useCallback(() => { setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); setLightbox((i) => (i !== null && i < filtered.length - 1 ? i + 1 : i)); }, [filtered.length]);
+  const resetLightboxPanels = useCallback(() => {
+    setTaggingEra(false); setTaggingWho(false); setConfirmDelete(false); setShowComments(false);
+  }, []);
+
+  const open  = useCallback((idx: number) => { resetLightboxPanels(); setLightbox(idx); }, [resetLightboxPanels]);
+  const close = useCallback(() => { setLightbox(null); resetLightboxPanels(); }, [resetLightboxPanels]);
+  const prev  = useCallback(() => { resetLightboxPanels(); setLightbox((i) => (i !== null && i > 0 ? i - 1 : i)); }, [resetLightboxPanels]);
+  const next  = useCallback(() => { resetLightboxPanels(); setLightbox((i) => (i !== null && i < filtered.length - 1 ? i + 1 : i)); }, [filtered.length, resetLightboxPanels]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -372,15 +374,10 @@ export function PhotoAlbumClient({
               </button>
             )}
 
-            {/* Person dropdown */}
             <PersonFilterDropdown
-              people={taggedPeople}
-              selected={personFilter}
-              onToggle={togglePerson}
-              photos={photos}
+              people={taggedPeople} selected={personFilter} onToggle={togglePerson} photos={photos}
             />
 
-            {/* Clear person filter */}
             {personFilter.size > 0 && (
               <button onClick={() => setPersonFilter(new Set())}
                 className="flex items-center gap-1 text-xs text-edn-gray/50 hover:text-edn-gray font-body transition-colors">
@@ -390,7 +387,6 @@ export function PhotoAlbumClient({
           </>
         )}
 
-        {/* Reorder controls */}
         {isAdmin && (
           <div className="ml-auto flex items-center gap-2">
             {reordering ? (
@@ -475,10 +471,13 @@ export function PhotoAlbumClient({
       {/* Lightbox */}
       {lightbox !== null && current && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={close}>
-          <div className="relative flex max-w-5xl w-full max-h-[90vh] mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex-1 flex flex-col items-center justify-center min-w-0">
+          <div className="relative flex flex-col lg:flex-row max-w-5xl w-full max-h-[95vh] lg:max-h-[90vh] mx-2 lg:mx-4 overflow-y-auto lg:overflow-visible"
+            onClick={(e) => e.stopPropagation()}>
+
+            {/* Image column */}
+            <div className="flex-1 flex flex-col items-center justify-center min-w-0 py-4 lg:py-0">
               <img src={current.mediaUrl} alt={current.title ?? ""}
-                className="max-h-[72vh] max-w-full object-contain rounded-xl" />
+                className="max-h-[55vh] lg:max-h-[72vh] max-w-full object-contain rounded-xl" />
 
               <div className="mt-2 text-center">
                 {current.title && <p className="text-white font-body text-sm">{current.title}</p>}
@@ -500,14 +499,14 @@ export function PhotoAlbumClient({
               )}
 
               {taggingWho && (
-                <div className="mt-3 w-full max-w-xs">
+                <div className="mt-3 w-full flex justify-center px-4">
                   <TagPanel photo={current} classmates={classmates}
                     onTagsChange={(tags) => updateTags(current.id, tags)} />
                 </div>
               )}
 
               {isAdmin && taggingEra && (
-                <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
+                <div className="mt-3 flex flex-wrap gap-1.5 justify-center px-4">
                   <button onClick={() => applyEraTag(current.id, null)}
                     className="text-xs font-body bg-white/20 text-white px-2 py-1 rounded-full hover:bg-white/30">
                     Sem era
@@ -523,13 +522,33 @@ export function PhotoAlbumClient({
                 </div>
               )}
 
+              {/* Mobile comments inline */}
+              {showComments && (
+                <div className="lg:hidden mt-3 w-full bg-white rounded-xl overflow-hidden mx-4" style={{ maxWidth: "calc(100% - 2rem)" }}>
+                  <div className="p-3 border-b border-edn-mist">
+                    <p className="text-edn-navy text-sm font-body font-semibold">Comentários</p>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    <CommentThread memoryId={current.id} />
+                  </div>
+                </div>
+              )}
+
               {/* Action row */}
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3 justify-center px-4">
                 <button onClick={() => { setTaggingWho((v) => !v); setTaggingEra(false); setConfirmDelete(false); }}
                   className={`flex items-center gap-1 text-xs font-body transition-colors ${taggingWho ? "text-white" : "text-white/60 hover:text-white"}`}>
                   <UserPlus size={12} />
                   {taggingWho ? "Fechar" : current.tags.length > 0 ? "Editar pessoas" : "Marcar pessoas"}
                 </button>
+
+                {/* Mobile: comments toggle */}
+                <button onClick={() => { setShowComments((v) => !v); setTaggingWho(false); setTaggingEra(false); setConfirmDelete(false); }}
+                  className={`lg:hidden flex items-center gap-1 text-xs font-body transition-colors ${showComments ? "text-white" : "text-white/60 hover:text-white"}`}>
+                  <MessageSquare size={12} />
+                  {showComments ? "Fechar comentários" : "Comentários"}
+                </button>
+
                 {isAdmin && (
                   <>
                     <button onClick={() => { setTaggingEra((v) => !v); setTaggingWho(false); setConfirmDelete(false); }}
@@ -561,7 +580,8 @@ export function PhotoAlbumClient({
               </div>
             </div>
 
-            <div className="hidden lg:flex flex-col w-72 ml-4 bg-white rounded-xl overflow-hidden">
+            {/* Desktop sidebar comments */}
+            <div className="hidden lg:flex flex-col w-72 ml-4 bg-white rounded-xl overflow-hidden flex-shrink-0">
               <div className="p-3 border-b border-edn-mist">
                 <p className="text-edn-navy text-sm font-body font-semibold">Comentários</p>
               </div>
