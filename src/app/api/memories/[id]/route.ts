@@ -40,10 +40,11 @@ export async function PATCH(
 
   // Admin-only fields
   if (isAdmin) {
-    if ("content"  in body) data.content  = body.content  ?? null;
-    if ("author"   in body) data.author   = body.author   ?? null;
-    if ("userId"   in body) data.userId   = body.userId;
+    if ("content"   in body) data.content   = body.content   ?? null;
+    if ("author"    in body) data.author    = body.author    ?? null;
+    if ("userId"    in body) data.userId    = body.userId;
     if ("sortOrder" in body) data.sortOrder = body.sortOrder;
+    if ("mediaUrl"  in body) data.mediaUrl  = body.mediaUrl  ?? null;
   }
 
   const updated = await prisma.memory.update({ where: { id }, data });

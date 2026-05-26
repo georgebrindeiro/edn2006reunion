@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Pencil, FolderOpen, Activity, Image as ImageIcon } from "lucide-react";
+import { Download, Pencil, FolderOpen, Activity, Image as ImageIcon, Video } from "lucide-react";
 import { AdminUserModal, type AdminUserRow } from "./AdminUserModal";
 import { AdminPhotosPanel } from "./AdminPhotosPanel";
+import { AdminVideoPanel } from "./AdminVideoPanel";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { UserContentModal } from "./UserContentModal";
 
@@ -18,7 +19,7 @@ const DRINK_LABEL: Record<string, string> = {
   OWN_DRINKS:    "Traz bebida",
 };
 
-type Tab = "users" | "photos" | "logs";
+type Tab = "users" | "photos" | "videos" | "logs";
 
 export function AdminClient({ users }: { users: AdminUserRow[] }) {
   const [tab,         setTab]         = useState<Tab>("users");
@@ -53,9 +54,10 @@ export function AdminClient({ users }: { users: AdminUserRow[] }) {
   }
 
   const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
-    { key: "users",  label: "Participantes", icon: Pencil },
+    { key: "users",  label: "Participantes", icon: Pencil    },
     { key: "photos", label: "Fotos",         icon: ImageIcon },
-    { key: "logs",   label: "Atividade",     icon: Activity },
+    { key: "videos", label: "Vídeos",        icon: Video     },
+    { key: "logs",   label: "Atividade",     icon: Activity  },
   ];
 
   return (
@@ -214,6 +216,16 @@ export function AdminClient({ users }: { users: AdminUserRow[] }) {
                 Gerenciar Fotos
               </h2>
               <AdminPhotosPanel users={userOptions} />
+            </div>
+          )}
+
+          {/* ── Videos tab ── */}
+          {tab === "videos" && (
+            <div className="space-y-4">
+              <h2 className="font-display text-edn-navy text-lg font-semibold">
+                Gerenciar Vídeos
+              </h2>
+              <AdminVideoPanel />
             </div>
           )}
 

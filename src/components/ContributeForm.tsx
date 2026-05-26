@@ -7,8 +7,11 @@ import {
 } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-client";
 import { MEMORY_ERAS, type MemoryEra } from "@/lib/memory-eras";
+import { detectMp4VideoCodec, codecNeedsTranscode, transcodeToH264 } from "@/lib/video-compat";
 
 type MemoryType = "QUOTE" | "STORY" | "PHOTO";
+
+type CodecStatus = "checking" | "ok" | "transcoding" | "error";
 
 interface PendingMedia {
   file: File;
@@ -17,10 +20,12 @@ interface PendingMedia {
   isVideo: boolean;
   url: string | null;
   era: MemoryEra | null;
-  useGlobalEra: boolean; // follows batchEra when true
+  useGlobalEra: boolean;
   title: string;
-  useGlobalTitle: boolean; // follows batchLabel when true
+  useGlobalTitle: boolean;
   uploadError: boolean;
+  codecStatus?: CodecStatus;
+  transcodeProgress?: number;
 }
 
 const TYPE_OPTIONS: { val: MemoryType; label: string; icon: React.ElementType }[] = [
@@ -103,6 +108,10 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
     }
 
     setItems((prev) => [...prev, ...newItems]);
+    // Fire codec detection for each video (non-blocking)
+    for (const item of newItems.filter((p) => p.isVideo)) {
+      checkAndTranscode(item);
+    }
   }
 
   function applyBatchLabel(label: string) {
@@ -143,8 +152,44 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
     ));
   }
 
+  async function checkAndTranscode(item: PendingMedia) {
+    const key = item.fileKey;
+    setItems((prev) => prev.map((p) => p.fileKey === key ? { ...p, codecStatus: "checking" } : p));
+    const codec = await detectMp4VideoCodec(item.file);
+    if (!codecNeedsTranscode(codec)) {
+      setItems((prev) => prev.map((p) => p.fileKey === key ? { ...p, codecStatus: "ok" } : p));
+      return;
+    }
+    setItems((prev) => prev.map((p) => p.fileKey === key ? { ...p, codecStatus: "transcoding", transcodeProgress: 0 } : p));
+    try {
+      const out = await transcodeToH264(item.file, (pct) =>
+        setItems((prev) => prev.map((p) => p.fileKey === key ? { ...p, transcodeProgress: pct } : p))
+      );
+      const newPreview = URL.createObjectURL(out);
+      URL.revokeObjectURL(item.preview);
+      setItems((prev) => prev.map((p) =>
+        p.fileKey === key ? { ...p, file: out, preview: newPreview, codecStatus: "ok", transcodeProgress: 1 } : p
+      ));
+    } catch {
+      setItems((prev) => prev.map((p) => p.fileKey === key ? { ...p, codecStatus: "error" } : p));
+    }
+  }
+
   async function uploadPendingMedia(): Promise<PendingMedia[]> {
-    const toUpload = items.filter((p) => p.url === null && !p.uploadError);
+    // Wait for any in-progress codec transcoding to finish
+    await new Promise<void>((resolve) => {
+      const check = () => {
+        setItems((prev) => {
+          const busy = prev.some((p) => p.codecStatus === "checking" || p.codecStatus === "transcoding");
+          if (!busy) resolve();
+          else setTimeout(check, 500);
+          return prev;
+        });
+      };
+      check();
+    });
+
+    const toUpload = items.filter((p) => p.url === null && !p.uploadError && p.codecStatus !== "error");
     if (toUpload.length === 0) return items;
 
     const uploaded = [...items];
@@ -351,7 +396,7 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
                   <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                     {items.map((item, idx) => (
                       <div key={item.fileKey}
-                        className={`flex gap-3 rounded-xl p-2.5 ${item.uploadError ? "bg-red-50" : item.url ? "bg-green-50" : "bg-edn-cloud/30"}`}>
+                        className={`flex gap-3 rounded-xl p-2.5 ${item.codecStatus === "error" ? "bg-red-50" : item.uploadError ? "bg-red-50" : item.url ? "bg-green-50" : "bg-edn-cloud/30"}`}>
                         {/* Thumbnail */}
                         <div className="relative flex-shrink-0 w-16 h-16">
                           {item.isVideo ? (
@@ -375,10 +420,39 @@ export function ContributeForm({ onSuccess }: { onSuccess?: () => void }) {
                               <AlertCircle size={14} className="text-red-600" />
                             </div>
                           )}
+                          {/* Transcoding overlay */}
+                          {item.isVideo && (item.codecStatus === "checking" || item.codecStatus === "transcoding") && !item.url && (
+                            <div className="absolute inset-0 bg-black/60 rounded-lg flex flex-col items-center justify-center gap-1">
+                              <Loader2 size={12} className="text-white animate-spin" />
+                              {item.codecStatus === "transcoding" && item.transcodeProgress !== undefined && (
+                                <span className="text-white text-[9px] font-body font-semibold">
+                                  {Math.round(item.transcodeProgress * 100)}%
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {item.codecStatus === "error" && (
+                            <div className="absolute inset-0 bg-red-500/50 rounded-lg flex items-center justify-center">
+                              <AlertCircle size={14} className="text-white" />
+                            </div>
+                          )}
                         </div>
 
                         {/* Fields */}
                         <div className="flex-1 min-w-0 space-y-1.5">
+                          {/* Codec warning */}
+                          {item.isVideo && item.codecStatus === "transcoding" && (
+                            <p className="text-[10px] text-amber-600 font-body flex items-center gap-1">
+                              <Loader2 size={9} className="animate-spin flex-shrink-0" />
+                              Convertendo para H.264… {item.transcodeProgress ? `${Math.round(item.transcodeProgress * 100)}%` : ""}
+                            </p>
+                          )}
+                          {item.isVideo && item.codecStatus === "checking" && (
+                            <p className="text-[10px] text-edn-gray font-body">Verificando compatibilidade…</p>
+                          )}
+                          {item.isVideo && item.codecStatus === "error" && (
+                            <p className="text-[10px] text-red-500 font-body">Falha na conversão — tente converter com HandBrake</p>
+                          )}
                           <div className="flex items-center gap-1">
                             <input
                               value={item.title}
