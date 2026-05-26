@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import {
   ComposableMap,
   Geographies,
@@ -31,12 +31,11 @@ interface Cluster {
   key: string;
   latitude: number;
   longitude: number;
-  locationKeys: string[]; // "City, Country" strings for all members
+  locationKeys: string[];
   members: ClassmatePoint[];
 }
 
-// Clustering threshold in degrees — at base scale 148, threshold = BASE_DEG
-// Brasilia↔SP ≈ 7.9°, SP↔Santos ≈ 0.5°; threshold=4 keeps Brasilia separate
+// At base scale 148 the threshold is BASE_DEG; shrinks linearly as we zoom in.
 const BASE_DEG = 4;
 
 function clusterThresholdDeg(scale: number): number {
@@ -129,10 +128,11 @@ function ConcentricOverlay({ cluster, onClick }: {
 
   return (
     <g transform={`translate(${cx}, ${cy})`}>
-      <circle r={outerR + 10} fill="transparent" style={{ cursor: "pointer" }} onClick={onClick} />
-      <circle cx={0} cy={0} r={outerR} fill="rgba(255,255,255,0.72)" />
+      {/* Background — pointer-events:none so the click-catcher below wins */}
+      <circle cx={0} cy={0} r={outerR} fill="rgba(255,255,255,0.72)" style={{ pointerEvents: "none" }} />
       {usedRings.map((r, i) => (
-        <circle key={i} cx={0} cy={0} r={r} fill="none" stroke="#c8d8e8" strokeWidth={1} strokeDasharray="4 4" />
+        <circle key={i} cx={0} cy={0} r={r} fill="none" stroke="#c8d8e8" strokeWidth={1}
+          strokeDasharray="4 4" style={{ pointerEvents: "none" }} />
       ))}
 
       {cluster.members.map((c, i) => {
@@ -164,19 +164,29 @@ function ConcentricOverlay({ cluster, onClick }: {
         );
       })}
 
-      <circle r={count === 1 ? 6 : 9} fill="#2a3d6a" stroke="white" strokeWidth={1.5} style={{ pointerEvents: "none" }} />
+      <circle r={count === 1 ? 6 : 9} fill="#2a3d6a" stroke="white" strokeWidth={1.5}
+        style={{ pointerEvents: "none" }} />
       {count > 1 && (
         <text textAnchor="middle" dominantBaseline="middle"
-          style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white", fontWeight: "700", fontFamily: "sans-serif", pointerEvents: "none" }}>
+          style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white", fontWeight: "700",
+            fontFamily: "sans-serif", pointerEvents: "none" }}>
           {count}
         </text>
       )}
+
+      {/* Transparent click-catcher rendered LAST so it sits on top of everything */}
+      <circle r={outerR + 10} fill="transparent" style={{ cursor: "pointer" }} onClick={onClick} />
     </g>
   );
 }
 
-const ZOOM_STEPS: number[] = [148, 296, 592, 1184, 2368];
+const ZOOM_STEPS: number[] = [148, 220, 330, 500, 750, 1100, 1650, 2500];
 const DEFAULT_CENTER: [number, number] = [15, 5];
+
+// Correct degrees-per-SVG-unit for D3 Mercator: full 360° = 2π × scale SVG units
+function degPerSvgUnit(scale: number) {
+  return 360 / (2 * Math.PI * scale);
+}
 
 export function WorldMap({
   classmates,
@@ -189,9 +199,9 @@ export function WorldMap({
   activeCities: Set<string>;
   onCitiesToggle: (keys: string[]) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [zoomIdx,   setZoomIdx]   = useState(0);
   const [center,    setCenter]    = useState<[number, number]>(DEFAULT_CENTER);
-  const [dragging,  setDragging]  = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number; center: [number, number] } | null>(null);
   const [didDrag,   setDidDrag]   = useState(false);
 
@@ -199,11 +209,7 @@ export function WorldMap({
   const clusters = buildClusters(classmates, scale);
   const withLocation = classmates.filter((c) => c.latitude != null).length;
 
-  // degrees per CSS pixel (approximate for 800px-wide map at current scale)
-  const degPerPx = 360 / (scale * Math.PI / 180 * 800 / 360) / 5;
-
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setDragging(true);
     setDidDrag(false);
     setDragStart({ x: e.clientX, y: e.clientY, center: [...center] as [number, number] });
   }, [center]);
@@ -213,27 +219,28 @@ export function WorldMap({
     const dx = e.clientX - dragStart.x;
     const dy = e.clientY - dragStart.y;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) setDidDrag(true);
-    const lonDelta = -dx * degPerPx;
-    const latDelta =  dy * degPerPx;
+
+    // Convert CSS pixels → degrees using the correct formula
+    // SVG viewBox is 800 units wide; container's CSS clientWidth gives the scaling factor
+    const cssWidth  = containerRef.current?.clientWidth ?? 800;
+    const degPerPx  = degPerSvgUnit(scale) * (800 / cssWidth);
+    const lonDelta  = -dx * degPerPx;
+    const latDelta  =  dy * degPerPx;
     setCenter([
       dragStart.center[0] + lonDelta,
-      Math.max(-80, Math.min(80, dragStart.center[1] + latDelta)),
+      Math.max(-75, Math.min(75, dragStart.center[1] + latDelta)),
     ]);
-  }, [dragStart, degPerPx]);
+  }, [dragStart, scale]);
 
   const handleMouseUp = useCallback(() => {
-    setDragging(false);
     setDragStart(null);
-    // reset didDrag after a short delay so click handlers can check it
     setTimeout(() => setDidDrag(false), 50);
   }, []);
 
   function handleClusterClick(cluster: Cluster) {
     if (didDrag) return;
-    // Toggle: if any key already active → remove all; otherwise add all
     const anyActive = cluster.locationKeys.some((k) => activeCities.has(k));
     if (anyActive) {
-      // Deselect all member location keys
       onCitiesToggle(cluster.locationKeys.map((k) => `-${k}`));
     } else {
       onCitiesToggle(cluster.locationKeys);
@@ -242,10 +249,11 @@ export function WorldMap({
 
   return (
     <div
+      ref={containerRef}
       className="bg-white rounded-2xl shadow-sm relative select-none"
-      style={{ overflow: "hidden", cursor: dragging ? "grabbing" : "grab" }}
+      style={{ overflow: "hidden", cursor: dragStart ? "grabbing" : "grab" }}
       onMouseDown={handleMouseDown}
-      onMouseMove={dragging ? handleMouseMove : undefined}
+      onMouseMove={dragStart ? handleMouseMove : undefined}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
@@ -278,10 +286,12 @@ export function WorldMap({
           return (
             <Marker key={cluster.key} coordinates={[cluster.longitude, cluster.latitude]}
               onClick={() => handleClusterClick(cluster)}>
-              <circle r={count === 1 ? 6 : 9} fill="#1a2744" stroke="white" strokeWidth={1.5} className="cursor-pointer" />
+              <circle r={count === 1 ? 6 : 9} fill="#1a2744" stroke="white" strokeWidth={1.5}
+                className="cursor-pointer" />
               {count > 1 && (
                 <text textAnchor="middle" dominantBaseline="middle"
-                  style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white", fontWeight: "700", fontFamily: "sans-serif", pointerEvents: "none" }}>
+                  style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white",
+                    fontWeight: "700", fontFamily: "sans-serif", pointerEvents: "none" }}>
                   {count}
                 </text>
               )}
