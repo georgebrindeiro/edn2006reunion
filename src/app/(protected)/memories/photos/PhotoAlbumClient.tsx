@@ -44,7 +44,6 @@ interface Photo {
   sortOrder: number | null; createdAt: string; userName: string | null; tags: TaggedUser[];
 }
 interface Classmate { id: string; fullName: string; photoNow: string | null; }
-type EraFilterValue = MemoryEra | "ALL" | "NONE";
 
 function getInitials(name: string | null) {
   if (!name) return "?";
@@ -226,7 +225,7 @@ export function PhotoAlbumClient({
   initialPhotoId?: string | null; currentUser?: CurrentUser | null;
 }) {
   const [photos,         setPhotos]         = useState<Photo[]>(initial);
-  const [eraFilter,      setEraFilter]      = useState<EraFilterValue>("ALL");
+  const [eraFilter,      setEraFilter]      = useState<Set<string>>(new Set());
   const [personFilter,   setPersonFilter]   = useState<Set<string>>(new Set());
   const [labelFilter,    setLabelFilter]    = useState<Set<string>>(new Set());
   const [lightbox,       setLightbox]       = useState<number | null>(() => {
@@ -255,10 +254,15 @@ export function PhotoAlbumClient({
     for (const p of photos) {
       if (p.title?.trim()) counts.set(p.title.trim(), (counts.get(p.title.trim()) ?? 0) + 1);
     }
-    return Array.from(counts.entries())
+    const noFolderCount = photos.filter((p) => !p.title?.trim()).length;
+    const entries = Array.from(counts.entries())
       .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
       .map(([label, count]) => ({ key: label, label, sublabel: String(count) }));
-  }, [photos]);
+    if (noFolderCount > 0 || isAdmin) {
+      entries.unshift({ key: "__none__", label: "Sem pasta", sublabel: String(noFolderCount) });
+    }
+    return entries;
+  }, [photos, isAdmin]);
 
   // Tagged people for people filter
   const taggedPeople = useMemo(() =>
@@ -269,16 +273,21 @@ export function PhotoAlbumClient({
 
   const filtered = useMemo(() => {
     let base = allSorted;
-    if (eraFilter === "NONE")     base = allSorted.filter((p) => !p.era);
-    else if (eraFilter !== "ALL") base = allSorted.filter((p) => p.era === eraFilter);
-    // Label filter: OR logic
-    if (labelFilter.size > 0)    base = base.filter((p) => p.title && labelFilter.has(p.title.trim()));
+    // Era filter: OR logic across selected eras; empty = all
+    if (eraFilter.size > 0) base = base.filter((p) => p.era && eraFilter.has(p.era));
+    // Label filter: OR logic; "__none__" matches photos with no folder
+    if (labelFilter.size > 0) base = base.filter((p) => {
+      const trimmed = p.title?.trim();
+      if (!trimmed) return labelFilter.has("__none__");
+      return labelFilter.has(trimmed);
+    });
     // Person filter: OR logic
-    if (personFilter.size > 0)   base = base.filter((p) => p.tags.some((t) => personFilter.has(t.userId)));
-    return eraFilter !== "ALL" ? sortedWithin(base) : base;
+    if (personFilter.size > 0) base = base.filter((p) => p.tags.some((t) => personFilter.has(t.userId)));
+    // Sort by sortOrder when viewing a single era; otherwise keep era-first ordering
+    return eraFilter.size === 1 ? sortedWithin(base) : base;
   }, [allSorted, eraFilter, personFilter, labelFilter]);
 
-  const canReorder = isAdmin && eraFilter !== "ALL";
+  const canReorder = isAdmin && eraFilter.size === 1 && personFilter.size === 0 && labelFilter.size === 0;
 
   // Sync ?photo=<id> in the URL whenever the lightbox opens, navigates, or closes
   useEffect(() => {
@@ -395,12 +404,14 @@ export function PhotoAlbumClient({
     setPersonFilter((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
+  function toggleEra(era: string) {
+    setEraFilter((prev) => { const n = new Set(prev); n.has(era) ? n.delete(era) : n.add(era); return n; });
+  }
   function toggleLabel(label: string) {
     setLabelFilter((prev) => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
   }
-  const uncategorizedCount = photos.filter((p) => !p.era).length;
   const displayPhotos = reordering ? reorderItems : filtered;
-  const activeFilters = personFilter.size + labelFilter.size;
+  const activeFilters = eraFilter.size + personFilter.size + labelFilter.size;
 
   return (
     <>
@@ -408,34 +419,19 @@ export function PhotoAlbumClient({
       <div className="flex flex-wrap items-center gap-2">
         {!reordering && (
           <>
-            <button onClick={() => { setEraFilter("ALL"); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
-              className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
-                eraFilter === "ALL" && activeFilters === 0 ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
-              }`}>
-              Todas ({photos.length})
-            </button>
-
             {MEMORY_ERAS.map((era) => {
               const count = photos.filter((p) => p.era === era.value).length;
               if (count === 0 && !isAdmin) return null;
+              const active = eraFilter.has(era.value);
               return (
-                <button key={era.value} onClick={() => { setEraFilter(era.value); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
+                <button key={era.value} onClick={() => toggleEra(era.value)}
                   className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
-                    eraFilter === era.value ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
+                    active ? "bg-edn-navy text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
                   }`}>
                   {era.emoji} {era.label} ({count})
                 </button>
               );
             })}
-
-            {(uncategorizedCount > 0 || isAdmin) && (
-              <button onClick={() => { setEraFilter("NONE"); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
-                className={`text-xs font-body px-3 py-1.5 rounded-full transition-colors ${
-                  eraFilter === "NONE" ? "bg-edn-gray text-white" : "bg-edn-cloud/70 text-edn-gray hover:bg-edn-cloud"
-                }`}>
-                Sem era ({uncategorizedCount})
-              </button>
-            )}
 
             {/* Label / folder filter */}
             <MultiSelectDropdown
@@ -459,9 +455,9 @@ export function PhotoAlbumClient({
               onToggle={togglePerson}
             />
 
-            {/* Clear all extra filters */}
+            {/* Clear all filters */}
             {activeFilters > 0 && (
-              <button onClick={() => { setPersonFilter(new Set()); setLabelFilter(new Set()); }}
+              <button onClick={() => { setEraFilter(new Set()); setPersonFilter(new Set()); setLabelFilter(new Set()); }}
                 className="flex items-center gap-1 text-xs text-edn-gray/50 hover:text-edn-gray font-body transition-colors">
                 <X size={11} /> limpar filtros
               </button>
@@ -507,7 +503,7 @@ export function PhotoAlbumClient({
       {/* Grid */}
       {displayPhotos.length === 0 ? (
         <div className="text-center py-16 text-edn-gray font-body text-sm">
-          {eraFilter === "NONE" ? "Nenhum item sem categoria." : "Nenhum resultado para os filtros selecionados."}
+          {activeFilters > 0 ? "Nenhum resultado para os filtros selecionados." : "Nenhuma foto encontrada."}
         </div>
       ) : reordering ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

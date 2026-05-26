@@ -106,6 +106,8 @@ export function codecNeedsTranscode(codec: string | null): boolean {
 type FFmpegInstance = import("@ffmpeg/ffmpeg").FFmpeg;
 let ffSingleton: FFmpegInstance | null = null;
 let ffLoadPromise: Promise<FFmpegInstance> | null = null;
+// Serial queue: ensures only one exec runs at a time on the single-threaded WASM instance
+let ffQueue: Promise<unknown> = Promise.resolve();
 
 async function getFFmpeg(): Promise<FFmpegInstance> {
   if (ffSingleton?.loaded) return ffSingleton;
@@ -127,6 +129,12 @@ async function getFFmpeg(): Promise<FFmpegInstance> {
   return ffLoadPromise;
 }
 
+function withFFmpegLock<T>(fn: () => Promise<T>): Promise<T> {
+  const result = ffQueue.then(() => fn()) as Promise<T>;
+  ffQueue = result.catch(() => {});
+  return result;
+}
+
 /**
  * Transcode a video file to H.264/AAC MP4 in the browser.
  * Uses ultrafast preset — trades file size for transcoding speed.
@@ -138,33 +146,39 @@ export async function transcodeToH264(
   const { fetchFile } = await import("@ffmpeg/util");
   const ff = await getFFmpeg();
 
-  const ext    = file.name.match(/\.[^.]+$/)?.[0] ?? ".mp4";
-  const inName = `in${ext}`;
-  const outName = "out.mp4";
+  // Unique names per call so concurrent invocations don't clobber each other's FS files
+  const uid     = Math.random().toString(36).slice(2, 8);
+  const ext     = file.name.match(/\.[^.]+$/)?.[0] ?? ".mp4";
+  const inName  = `in_${uid}${ext}`;
+  const outName = `out_${uid}.mp4`;
+
+  const inputData = await fetchFile(file);
 
   const handler = onProgress
     ? ({ progress }: { progress: number }) =>
         onProgress(Math.min(1, Math.max(0, progress)))
     : null;
 
-  if (handler) ff.on("progress", handler);
+  // Serialize through the queue — FFmpeg WASM is single-threaded
+  const raw = await withFFmpegLock(async () => {
+    if (handler) ff.on("progress", handler);
+    await ff.writeFile(inName, inputData);
+    await ff.exec([
+      "-i", inName,
+      "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+      "-c:a", "aac",
+      "-movflags", "faststart",
+      outName,
+    ]);
+    const result = await ff.readFile(outName) as Uint8Array;
+    if (handler) ff.off("progress", handler);
+    try { await ff.deleteFile(inName); }  catch {}
+    try { await ff.deleteFile(outName); } catch {}
+    return result;
+  });
 
-  await ff.writeFile(inName, await fetchFile(file));
-  await ff.exec([
-    "-i", inName,
-    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-    "-c:a", "aac",
-    "-movflags", "faststart",
-    outName,
-  ]);
-
-  const raw  = await ff.readFile(outName) as Uint8Array;
   // Ensure a plain ArrayBuffer (readFile may return Uint8Array backed by SharedArrayBuffer)
   const data = new Uint8Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
-  if (handler) ff.off("progress", handler);
-  try { await ff.deleteFile(inName); }  catch {}
-  try { await ff.deleteFile(outName); } catch {}
-
-  const outName2 = file.name.replace(/\.[^.]+$/, ".mp4");
-  return new File([data.buffer as ArrayBuffer], outName2, { type: "video/mp4" });
+  const outFileName = file.name.replace(/\.[^.]+$/, ".mp4");
+  return new File([data.buffer as ArrayBuffer], outFileName, { type: "video/mp4" });
 }
