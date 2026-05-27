@@ -154,14 +154,10 @@ function ConcentricOverlay({ cluster, onClick }: {
         </>
       )}
 
-      {/* Avatar bubbles */}
+      {/* Avatar bubbles — rendered first so the hovered name pill (below) paints on top */}
       {cluster.members.map((c, i) => {
         if (i >= positions.length) return null;
         const { x, y } = positions[i];
-        const isHovered = hoveredId === c.id;
-        const firstName = c.fullName?.split(" ")[0] ?? "?";
-        const nameW     = Math.max(36, firstName.length * 5 + 12);
-
         return (
           <g key={c.id} transform={`translate(${x},${y})`}
             onMouseEnter={() => setHoveredId(c.id)}
@@ -186,20 +182,29 @@ function ConcentricOverlay({ cluster, onClick }: {
                 </text>
               </>
             )}
-            {/* Name pill — hover only */}
-            {isHovered && (
-              <g style={{ pointerEvents: "none" }}>
-                <rect x={-nameW / 2} y={-(AVATAR_R + 18)} width={nameW} height={13} rx={3}
-                  fill="rgba(26,39,68,0.88)" />
-                <text textAnchor="middle" dominantBaseline="middle" y={-(AVATAR_R + 12)}
-                  style={{ fontSize: "7px", fill: "white", fontWeight: "700", fontFamily: "sans-serif" }}>
-                  {firstName}
-                </text>
-              </g>
-            )}
           </g>
         );
       })}
+
+      {/* Name pill — rendered after all avatars so it always paints on top */}
+      {hoveredId && (() => {
+        const idx = cluster.members.findIndex((c) => c.id === hoveredId);
+        if (idx === -1 || idx >= positions.length) return null;
+        const c = cluster.members[idx];
+        const { x, y } = positions[idx];
+        const firstName = c.fullName?.split(" ")[0] ?? "?";
+        const nameW = Math.max(36, firstName.length * 5 + 12);
+        return (
+          <g transform={`translate(${x},${y})`} style={{ pointerEvents: "none" }}>
+            <rect x={-nameW / 2} y={-(AVATAR_R + 18)} width={nameW} height={13} rx={3}
+              fill="rgba(26,39,68,0.88)" />
+            <text textAnchor="middle" dominantBaseline="middle" y={-(AVATAR_R + 12)}
+              style={{ fontSize: "7px", fill: "white", fontWeight: "700", fontFamily: "sans-serif" }}>
+              {firstName}
+            </text>
+          </g>
+        );
+      })()}
 
       {/* Center count dot — multi only */}
       {!isSingle && (
