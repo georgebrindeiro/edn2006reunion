@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Loader2, Video, Upload, Square, Circle, CheckCircle2 } from "lucide-react";
+import { Loader2, Video, Upload, Square, Circle, CheckCircle2, AlertCircle } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-client";
 
 interface VideoMessage {
@@ -26,16 +26,18 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   initialMessages: VideoMessage[];
   hasExistingMessage: boolean;
 }) {
-  const [messages,  setMessages]  = useState<VideoMessage[]>(initialMessages);
-  const [mode,      setMode]      = useState<"idle" | "record" | "upload" | "preview">("idle");
-  const [recording, setRecording] = useState(false);
-  const [seconds,   setSeconds]   = useState(0);
-  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
-  const [videoUrl,  setVideoUrl]  = useState<string | null>(null);
-  const [error,          setError]          = useState("");
-  const [submitted,      setSubmitted]      = useState(hasExistingMessage);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadPhase,    setUploadPhase]    = useState<"idle" | "uploading" | "saving">("idle");
+  const [messages,      setMessages]      = useState<VideoMessage[]>(initialMessages);
+  const [mode,          setMode]          = useState<"idle" | "record" | "preview">("idle");
+  const [recording,     setRecording]     = useState(false);
+  const [seconds,       setSeconds]       = useState(0);
+  const [videoBlob,     setVideoBlob]     = useState<Blob | null>(null);
+  const [videoUrl,      setVideoUrl]      = useState<string | null>(null);
+  const [error,         setError]         = useState("");
+  const [submitted,     setSubmitted]     = useState(hasExistingMessage);
+  const [uploadProgress,setUploadProgress]= useState(0);
+  const [uploadPhase,   setUploadPhase]   = useState<"idle" | "uploading" | "saving">("idle");
+  // Diagnostic info shown in preview so we can see exactly what file was picked
+  const [fileInfo,      setFileInfo]      = useState<{ name: string; sizeMB: string; type: string } | null>(null);
 
   const livePreviewRef   = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -45,7 +47,10 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
 
   const { startUpload, isUploading } = useUploadThing("videoMessage", {
     onUploadProgress: (p) => setUploadProgress(p),
-    onUploadError:    (err) => setError(`Falha no upload: ${err.message}`),
+    onUploadError:    (err) => {
+      setError(`Falha no upload: ${err.message}`);
+      setUploadPhase("idle");
+    },
   });
 
   useEffect(() => {
@@ -74,6 +79,7 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
         const blob = new Blob(chunksRef.current, { type: "video/webm" });
         setVideoBlob(blob);
         setVideoUrl(URL.createObjectURL(blob));
+        setFileInfo(null);
         setMode("preview");
         streamRef.current?.getTracks().forEach((t) => t.stop());
       };
@@ -102,16 +108,40 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    // Reset input so the same file can be re-selected after an error
+    e.target.value = "";
+
     if (!file) return;
-    // Android Chrome often reports gallery videos with type="" or "application/octet-stream".
-    // The input already has accept="video/*" so trust the OS filter; only reject clearly non-video types.
+
+    // Android Chrome gallery files often have type="" or "application/octet-stream".
+    // The accept="video/*" on the input already filters at OS level, so trust it.
     const isVideo = file.type.startsWith("video/")
       || file.type === ""
       || file.type === "application/octet-stream"
       || /\.(mp4|mov|webm|avi|mkv|m4v|3gp|ogv)$/i.test(file.name);
-    if (!isVideo) { setError("Arquivo inválido. Selecione um vídeo (MP4, MOV, WebM, etc.)."); return; }
-    if (file.size > 256 * 1024 * 1024) { setError("Arquivo muito grande. Máximo 256 MB."); return; }
+    if (!isVideo) {
+      setError(`Arquivo inválido (tipo: "${file.type || "desconhecido"}"). Selecione um vídeo MP4, MOV ou WebM.`);
+      return;
+    }
+
+    if (file.size === 0) {
+      setError(
+        "O arquivo parece estar vazio. No Android, abra o vídeo no app Arquivos (não no Google Fotos) e tente novamente, ou baixe o vídeo localmente antes de enviar."
+      );
+      return;
+    }
+
+    if (file.size > 256 * 1024 * 1024) {
+      setError(`Arquivo muito grande (${(file.size / (1024 * 1024)).toFixed(0)} MB). O limite é 256 MB.`);
+      return;
+    }
+
     setError("");
+    setFileInfo({
+      name:   file.name,
+      sizeMB: (file.size / (1024 * 1024)).toFixed(1),
+      type:   file.type || "(sem tipo — será inferido da extensão)",
+    });
     setVideoBlob(file);
     setVideoUrl(URL.createObjectURL(file));
     setMode("preview");
@@ -125,10 +155,18 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
 
     const isFileUpload = videoBlob instanceof File;
     const fileName = isFileUpload ? (videoBlob as File).name : "message.webm";
-    // Android may give an empty type — infer from extension so UploadThing accepts the file
-    const rawType = isFileUpload ? (videoBlob as File).type : "video/webm";
+    const rawType  = isFileUpload ? (videoBlob as File).type : "video/webm";
     const mimeType = rawType || inferVideoMime(fileName);
     const file = new File([videoBlob], fileName, { type: mimeType });
+
+    // Guard against cloud-backed files that materialised as 0 bytes
+    if (file.size === 0) {
+      setError(
+        "Não foi possível ler o arquivo. No Android, use o app Arquivos para selecionar o vídeo ou baixe-o localmente antes de enviar."
+      );
+      setUploadPhase("idle");
+      return;
+    }
 
     let res;
     try {
@@ -142,7 +180,7 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
 
     const videoUrl = res?.[0]?.ufsUrl ?? res?.[0]?.url;
     if (!videoUrl) {
-      setError("Upload falhou — arquivo pode ser muito grande ou formato não suportado. Tente novamente.");
+      setError("Upload não retornou URL — o arquivo pode ser muito grande, estar corrompido, ou o formato não é suportado. Tente novamente.");
       setUploadPhase("idle");
       return;
     }
@@ -161,6 +199,7 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
       setMode("idle");
       setVideoBlob(null);
       setVideoUrl(null);
+      setFileInfo(null);
       setUploadPhase("idle");
     } else {
       const body = await apiRes.json().catch(() => ({}));
@@ -170,7 +209,7 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   }
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-  const progress = (seconds / MAX_SECONDS) * 100;
+  const recordProgress = (seconds / MAX_SECONDS) * 100;
 
   return (
     <div className="space-y-8">
@@ -179,6 +218,14 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
       {!submitted ? (
         <div className="bg-white rounded-2xl p-6 shadow-sm space-y-5">
           <h2 className="font-display text-edn-navy text-lg font-semibold">Deixe sua mensagem</h2>
+
+          {/* Error — always visible regardless of mode */}
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 rounded-lg px-3 py-2.5">
+              <AlertCircle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
+              <p className="text-red-600 text-xs font-body">{error}</p>
+            </div>
+          )}
 
           {mode === "idle" && (
             <div className="grid grid-cols-2 gap-4">
@@ -194,7 +241,7 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
                 <Upload size={28} className="text-edn-navy" />
                 <div className="text-center">
                   <p className="font-body font-semibold text-edn-navy text-sm">Enviar arquivo</p>
-                  <p className="text-edn-gray text-xs font-body mt-0.5">MP4, MOV, WebM</p>
+                  <p className="text-edn-gray text-xs font-body mt-0.5">MP4, MOV, WebM · máx 256 MB</p>
                 </div>
                 <input type="file" accept="video/*" className="hidden" onChange={handleFileUpload} />
               </label>
@@ -215,7 +262,7 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
               {recording && (
                 <div className="h-1.5 bg-edn-cloud rounded-full overflow-hidden">
                   <div className="h-full bg-red-500 transition-all duration-1000 rounded-full"
-                    style={{ width: `${progress}%` }} />
+                    style={{ width: `${recordProgress}%` }} />
                 </div>
               )}
               <div className="flex gap-3">
@@ -240,14 +287,14 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
 
           {mode === "preview" && videoUrl && (
             <div className="space-y-4">
-              <div className="relative">
-                <video src={videoUrl} controls className="w-full rounded-xl aspect-video bg-black" />
-                {videoBlob && (
-                  <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-body rounded px-1.5 py-0.5">
-                    {(videoBlob.size / (1024 * 1024)).toFixed(1)} MB
-                  </span>
-                )}
-              </div>
+              <video src={videoUrl} controls className="w-full rounded-xl aspect-video bg-black" />
+
+              {/* File diagnostic row */}
+              {fileInfo && (
+                <p className="text-edn-gray text-[11px] font-body">
+                  {fileInfo.name} · {fileInfo.sizeMB} MB · <span className="text-edn-steel">{fileInfo.type}</span>
+                </p>
+              )}
 
               {/* Upload progress */}
               {uploadPhase === "uploading" && (
@@ -276,15 +323,13 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
                 </div>
               )}
 
-              {error && <p className="text-red-500 text-xs font-body bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-
               <div className="flex gap-3">
                 <button onClick={handleSubmit} disabled={isUploading}
                   className="flex-1 flex items-center justify-center gap-2 bg-edn-navy text-white py-3 rounded-xl text-sm font-body font-semibold hover:bg-edn-navy-mid transition-colors disabled:opacity-60">
                   {isUploading && <Loader2 size={14} className="animate-spin" />}
                   {isUploading ? "Enviando..." : "Enviar mensagem"}
                 </button>
-                <button onClick={() => { setMode("idle"); setVideoBlob(null); setVideoUrl(null); setUploadPhase("idle"); }}
+                <button onClick={() => { setMode("idle"); setVideoBlob(null); setVideoUrl(null); setFileInfo(null); setUploadPhase("idle"); }}
                   disabled={isUploading}
                   className="px-5 py-3 rounded-xl border border-edn-mist text-edn-gray text-sm font-body hover:bg-edn-cloud transition-colors disabled:opacity-40">
                   Regravar
