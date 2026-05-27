@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import {
   ComposableMap,
   Geographies,
@@ -113,8 +113,8 @@ function getUsedRings(count: number): number[] {
   return used;
 }
 
-function ConcentricOverlay({ cluster, onClick }: {
-  cluster: Cluster; onClick: () => void;
+function ConcentricOverlay({ cluster, onClick, avatarScale }: {
+  cluster: Cluster; onClick: () => void; avatarScale: number;
 }) {
   const { projection } = useMapContext();
   const coords = projection([cluster.longitude, cluster.latitude]);
@@ -135,7 +135,7 @@ function ConcentricOverlay({ cluster, onClick }: {
   const locY = outerR + 8;
 
   return (
-    <g transform={`translate(${cx}, ${cy})`} onClick={onClick} style={{ cursor: "pointer" }}>
+    <g transform={`translate(${cx}, ${cy}) scale(${avatarScale})`} onClick={onClick} style={{ cursor: "pointer" }}>
       {/* Transparent hit-area rendered first (behind everything) so clicks on the
           background and center dot — which have pointerEvents:none — still reach
           this <g> and fire onClick. Avatars rendered later sit on top and keep
@@ -258,12 +258,34 @@ export function WorldMap({
   onCitiesToggle: (keys: string[]) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [zoomIdx,   setZoomIdx]   = useState(0);
-  const [center,    setCenter]    = useState<[number, number]>(DEFAULT_CENTER);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number; center: [number, number] } | null>(null);
-  const [didDrag,   setDidDrag]   = useState(false);
+  const [zoomIdx,        setZoomIdx]        = useState(0);
+  const [center,         setCenter]         = useState<[number, number]>(DEFAULT_CENTER);
+  const [dragStart,      setDragStart]      = useState<{ x: number; y: number; center: [number, number] } | null>(null);
+  const [didDrag,        setDidDrag]        = useState(false);
+  const [containerWidth, setContainerWidth] = useState(800);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setContainerWidth(el.clientWidth || 800);
+    const obs = new ResizeObserver(([entry]) => {
+      setContainerWidth(entry.contentRect.width || 800);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   const scale    = ZOOM_STEPS[zoomIdx];
+
+  // SVG viewBox is 800 units wide; on mobile the container is narrower, so each SVG unit
+  // maps to fewer CSS pixels. viewportCompensation >1 on mobile to restore physical size.
+  const viewportCompensation = Math.max(1, 800 / containerWidth);
+
+  // Expanded-overlay avatars: compensate for mobile viewport only (zoom-independent).
+  const avatarScale = viewportCompensation;
+
+  // Collapsed pins: compensate for mobile + grow gently with zoom so they stay visible.
+  const pinScale = viewportCompensation * Math.pow(scale / 148, 0.3);
   const clusters = buildClusters(classmates, scale);
   const withLocation = classmates.filter((c) => c.latitude != null).length;
 
@@ -375,11 +397,11 @@ export function WorldMap({
           return (
             <Marker key={cluster.key} coordinates={[cluster.longitude, cluster.latitude]}
               onClick={() => handleClusterClick(cluster)}>
-              <circle r={count === 1 ? 6 : 9} fill="#1a2744" stroke="white" strokeWidth={1.5}
+              <circle r={(count === 1 ? 6 : 9) * pinScale} fill="#1a2744" stroke="white" strokeWidth={1.5 * pinScale}
                 className="cursor-pointer" />
               {count > 1 && (
                 <text textAnchor="middle" dominantBaseline="middle"
-                  style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white",
+                  style={{ fontSize: `${(count >= 10 ? 5 : 6) * pinScale}px`, fill: "white",
                     fontWeight: "700", fontFamily: "sans-serif", pointerEvents: "none" }}>
                   {count}
                 </text>
@@ -393,7 +415,7 @@ export function WorldMap({
           .filter((c) => c.locationKeys.some((k) => activeCities.has(k)))
           .map((cluster) => (
             <ConcentricOverlay key={`overlay-${cluster.key}`} cluster={cluster}
-              onClick={() => handleClusterClick(cluster)} />
+              onClick={() => handleClusterClick(cluster)} avatarScale={avatarScale} />
           ))}
       </ComposableMap>
 
