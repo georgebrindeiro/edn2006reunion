@@ -131,12 +131,17 @@ function ConcentricOverlay({ cluster, onClick }: {
     ? AVATAR_R + 4
     : (usedRings[usedRings.length - 1] ?? 30) + AVATAR_R + 6;
 
-  const locationLabel = cluster.locationKeys[0] ?? "";
-  const locW = locationLabel ? Math.max(44, locationLabel.length * 4.5 + 14) : 0;
+  const locationLines = cluster.locationKeys;
   const locY = outerR + 8;
 
   return (
     <g transform={`translate(${cx}, ${cy})`} onClick={onClick} style={{ cursor: "pointer" }}>
+      {/* Transparent hit-area rendered first (behind everything) so clicks on the
+          background and center dot — which have pointerEvents:none — still reach
+          this <g> and fire onClick. Avatars rendered later sit on top and keep
+          their own hover events. */}
+      <circle r={outerR + 4} fill="transparent" />
+
       {/* Background + dashed rings — multi only */}
       {!isSingle && (
         <>
@@ -209,17 +214,21 @@ function ConcentricOverlay({ cluster, onClick }: {
         </>
       )}
 
-      {/* Location label — always visible when expanded */}
-      {locationLabel && (
-        <g style={{ pointerEvents: "none" }}>
-          <rect x={-locW / 2} y={locY} width={locW} height={12} rx={3}
-            fill="rgba(255,255,255,0.92)" stroke="#c8d8e8" strokeWidth={0.5} />
-          <text textAnchor="middle" dominantBaseline="middle" y={locY + 6}
-            style={{ fontSize: "6.5px", fill: "#2a3d6a", fontWeight: "600", fontFamily: "sans-serif" }}>
-            {locationLabel}
-          </text>
-        </g>
-      )}
+      {/* Location labels — all locations, stacked, always visible when expanded */}
+      {locationLines.map((loc, i) => {
+        const lw = Math.max(44, loc.length * 4.5 + 14);
+        const ly = locY + i * 14;
+        return (
+          <g key={i} style={{ pointerEvents: "none" }}>
+            <rect x={-lw / 2} y={ly} width={lw} height={12} rx={3}
+              fill="rgba(255,255,255,0.92)" stroke="#c8d8e8" strokeWidth={0.5} />
+            <text textAnchor="middle" dominantBaseline="middle" y={ly + 6}
+              style={{ fontSize: "6.5px", fill: "#2a3d6a", fontWeight: "600", fontFamily: "sans-serif" }}>
+              {loc}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 }
