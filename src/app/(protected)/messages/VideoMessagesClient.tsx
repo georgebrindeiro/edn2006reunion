@@ -131,8 +131,8 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
       return;
     }
 
-    if (file.size > 256 * 1024 * 1024) {
-      setError(`Arquivo muito grande (${(file.size / (1024 * 1024)).toFixed(0)} MB). O limite é 256 MB.`);
+    if (file.size > 1024 * 1024 * 1024) {
+      setError(`Arquivo muito grande (${(file.size / (1024 * 1024)).toFixed(0)} MB). O limite é 1 GB.`);
       return;
     }
 
@@ -241,7 +241,7 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
                 <Upload size={28} className="text-edn-navy" />
                 <div className="text-center">
                   <p className="font-body font-semibold text-edn-navy text-sm">Enviar arquivo</p>
-                  <p className="text-edn-gray text-xs font-body mt-0.5">MP4, MOV, WebM · máx 256 MB</p>
+                  <p className="text-edn-gray text-xs font-body mt-0.5">MP4, MOV, WebM · máx 1 GB</p>
                 </div>
                 <input type="file" accept="video/*" className="hidden" onChange={handleFileUpload} />
               </label>

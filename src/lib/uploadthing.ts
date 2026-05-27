@@ -26,7 +26,7 @@ export const ourFileRouter = {
 
   memoryMedia: f({
     image: { maxFileSize: "16MB", maxFileCount: 1 },
-    video: { maxFileSize: "256MB", maxFileCount: 1 },
+    video: { maxFileSize: "1GB", maxFileCount: 1 },
   })
     .middleware(async () => {
       const user = await getAuthUser();
@@ -36,7 +36,7 @@ export const ourFileRouter = {
       return { ufsUrl: file.ufsUrl };
     }),
 
-  videoMessage: f({ video: { maxFileSize: "256MB", maxFileCount: 1 } })
+  videoMessage: f({ video: { maxFileSize: "1GB", maxFileCount: 1 } })
     .middleware(async () => {
       const user = await getAuthUser();
       return { userId: user.id };
