@@ -25,3 +25,38 @@ export async function PATCH(
   const user = await prisma.user.update({ where: { id }, data });
   return NextResponse.json(user);
 }
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if ((session?.user as any)?.role !== "ADMIN")
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await params;
+
+  if ((session!.user as any)?.id === id)
+    return NextResponse.json({ error: "Cannot delete your own profile" }, { status: 400 });
+
+  const admin = await prisma.user.findUnique({ where: { email: session!.user!.email! } });
+
+  const target = await prisma.user.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+    select: { fullName: true },
+  });
+
+  if (admin) {
+    await prisma.activityLog.create({
+      data: {
+        userId:  admin.id,
+        action:  "USER_SOFT_DELETE",
+        details: { targetUserId: id, targetName: target.fullName },
+      },
+    });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+

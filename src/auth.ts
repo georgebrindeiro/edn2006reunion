@@ -37,6 +37,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const user = await prisma.user.findUnique({ where: { phone } });
         if (!user?.fullName) return null;
+        if (user.deletedAt)  return null;
 
         await prisma.user.update({
           where: { id: user.id },

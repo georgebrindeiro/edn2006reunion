@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Loader2, ExternalLink, Upload } from "lucide-react";
+import { X, Loader2, ExternalLink, Upload, Trash2 } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing-client";
 
 const FOOD_LABEL: Record<string, string> = {
@@ -24,6 +24,7 @@ export interface AdminUserRow {
   city?: string | null;
   state?: string | null;
   country?: string | null;
+  deletedAt?: string | null;
   rsvp?: {
     isAttending: boolean;
     foodPreference: string;
@@ -73,8 +74,10 @@ export function AdminUserModal({ user, onClose }: { user: AdminUserRow; onClose:
   const [proofUrl,         setProofUrl]         = useState(user.rsvp?.paymentProofUrl ?? "");
   const [paymentConfirmed, setPaymentConfirmed] = useState(user.rsvp?.paymentConfirmed ?? false);
 
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState("");
+  const [saving,          setSaving]          = useState(false);
+  const [error,           setError]           = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting,         setDeleting]         = useState(false);
 
   const { startUpload, isUploading } = useUploadThing("paymentProof");
 
@@ -114,6 +117,15 @@ export function AdminUserModal({ user, onClose }: { user: AdminUserRow; onClose:
     });
     setSaving(false);
     if (!res.ok) { setError("Erro ao salvar."); return; }
+    router.refresh();
+    onClose();
+  }
+
+  async function handleDelete() {
+    setDeleting(true); setError("");
+    const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
+    setDeleting(false);
+    if (!res.ok) { setError("Erro ao deletar perfil."); return; }
     router.refresh();
     onClose();
   }
@@ -204,6 +216,40 @@ export function AdminUserModal({ user, onClose }: { user: AdminUserRow; onClose:
                 {saving && <Loader2 size={14} className="animate-spin" />}
                 Salvar perfil
               </button>
+
+              <div className="border-t border-edn-mist pt-4 mt-2">
+                {!confirmingDelete ? (
+                  <button
+                    onClick={() => setConfirmingDelete(true)}
+                    className="flex items-center gap-2 text-xs text-red-500 hover:text-red-700 font-body transition-colors"
+                  >
+                    <Trash2 size={13} /> Deletar perfil (soft delete)
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-edn-gray font-body">
+                      O perfil ficará oculto e poderá ser restaurado depois. Confirmar?
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="flex-1 py-2 rounded-xl bg-red-500 text-white text-xs font-body font-semibold disabled:opacity-60 flex items-center justify-center gap-1.5"
+                      >
+                        {deleting && <Loader2 size={12} className="animate-spin" />}
+                        Sim, deletar
+                      </button>
+                      <button
+                        onClick={() => setConfirmingDelete(false)}
+                        disabled={deleting}
+                        className="flex-1 py-2 rounded-xl border border-edn-mist text-edn-gray text-xs font-body"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
 

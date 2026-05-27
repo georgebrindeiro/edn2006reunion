@@ -21,6 +21,7 @@ model User {
   lastLoginAt     DateTime?
   previousLoginAt DateTime?
   lastActiveAt    DateTime?
+  deletedAt       DateTime?
 
   // Profile
   fullName      String?
