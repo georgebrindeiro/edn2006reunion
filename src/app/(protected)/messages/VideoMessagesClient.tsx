@@ -39,15 +39,19 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   // Diagnostic info shown in preview so we can see exactly what file was picked
   const [fileInfo,      setFileInfo]      = useState<{ name: string; sizeMB: string; type: string } | null>(null);
 
-  const livePreviewRef   = useRef<HTMLVideoElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef        = useRef<Blob[]>([]);
-  const timerRef         = useRef<NodeJS.Timeout | null>(null);
-  const streamRef        = useRef<MediaStream | null>(null);
+  const livePreviewRef    = useRef<HTMLVideoElement>(null);
+  const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
+  const chunksRef         = useRef<Blob[]>([]);
+  const timerRef          = useRef<NodeJS.Timeout | null>(null);
+  const streamRef         = useRef<MediaStream | null>(null);
+  // Tracks whether onUploadError already set a specific error so we don't
+  // overwrite it with the generic "no URL" fallback message.
+  const uploadErrorRef    = useRef(false);
 
   const { startUpload, isUploading } = useUploadThing("videoMessage", {
     onUploadProgress: (p) => setUploadProgress(p),
-    onUploadError:    (err) => {
+    onUploadError: (err) => {
+      uploadErrorRef.current = true;
       setError(`Falha no upload: ${err.message}`);
       setUploadPhase("idle");
     },
@@ -150,16 +154,21 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   async function handleSubmit() {
     if (!videoBlob) return;
     setError("");
+    uploadErrorRef.current = false;
     setUploadProgress(0);
     setUploadPhase("uploading");
 
-    const isFileUpload = videoBlob instanceof File;
-    const fileName = isFileUpload ? (videoBlob as File).name : "message.webm";
-    const rawType  = isFileUpload ? (videoBlob as File).type : "video/webm";
-    const mimeType = rawType || inferVideoMime(fileName);
-    const file = new File([videoBlob], fileName, { type: mimeType });
+    // Build the File to upload. For gallery files that already have a type,
+    // pass them directly — avoids any wrapping overhead for large files.
+    let file: File;
+    if (videoBlob instanceof File) {
+      const f = videoBlob as File;
+      file = f.type ? f : new File([f], f.name, { type: inferVideoMime(f.name) });
+    } else {
+      file = new File([videoBlob], "message.webm", { type: "video/webm" });
+    }
 
-    // Guard against cloud-backed files that materialised as 0 bytes
+    // Guard against cloud-backed Android files that materialised as 0 bytes
     if (file.size === 0) {
       setError(
         "Não foi possível ler o arquivo. No Android, use o app Arquivos para selecionar o vídeo ou baixe-o localmente antes de enviar."
@@ -180,8 +189,12 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
 
     const videoUrl = res?.[0]?.ufsUrl ?? res?.[0]?.url;
     if (!videoUrl) {
-      setError("Upload não retornou URL — o arquivo pode ser muito grande, estar corrompido, ou o formato não é suportado. Tente novamente.");
-      setUploadPhase("idle");
+      // If onUploadError already set a specific message, don't overwrite it.
+      if (!uploadErrorRef.current) {
+        console.error("[VideoUpload] startUpload returned without URL:", res);
+        setError("O upload não foi concluído. Verifique sua conexão e tente novamente.");
+        setUploadPhase("idle");
+      }
       return;
     }
 
