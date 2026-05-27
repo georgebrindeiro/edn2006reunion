@@ -121,26 +121,46 @@ function ConcentricOverlay({ cluster, onClick }: {
   if (!coords) return null;
   const [cx, cy] = coords;
 
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   const count     = cluster.members.length;
-  const positions = getAvatarPositions(count);
-  const usedRings = getUsedRings(count);
-  const outerR    = (usedRings[usedRings.length - 1] ?? 30) + AVATAR_R + 6;
+  const isSingle  = count === 1;
+  const positions = isSingle ? [{ x: 0, y: 0 }] : getAvatarPositions(count);
+  const usedRings = isSingle ? [] : getUsedRings(count);
+  const outerR    = isSingle
+    ? AVATAR_R + 4
+    : (usedRings[usedRings.length - 1] ?? 30) + AVATAR_R + 6;
+
+  const locationLabel = cluster.locationKeys[0] ?? "";
+  const locW = locationLabel ? Math.max(44, locationLabel.length * 4.5 + 14) : 0;
+  const locY = outerR + 8;
 
   return (
-    <g transform={`translate(${cx}, ${cy})`}>
-      {/* Background — pointer-events:none so the click-catcher below wins */}
-      <circle cx={0} cy={0} r={outerR} fill="rgba(255,255,255,0.72)" style={{ pointerEvents: "none" }} />
-      {usedRings.map((r, i) => (
-        <circle key={i} cx={0} cy={0} r={r} fill="none" stroke="#c8d8e8" strokeWidth={1}
-          strokeDasharray="4 4" style={{ pointerEvents: "none" }} />
-      ))}
+    <g transform={`translate(${cx}, ${cy})`} onClick={onClick} style={{ cursor: "pointer" }}>
+      {/* Background + dashed rings — multi only */}
+      {!isSingle && (
+        <>
+          <circle cx={0} cy={0} r={outerR} fill="rgba(255,255,255,0.72)"
+            style={{ pointerEvents: "none" }} />
+          {usedRings.map((r, i) => (
+            <circle key={i} cx={0} cy={0} r={r} fill="none" stroke="#c8d8e8" strokeWidth={1}
+              strokeDasharray="4 4" style={{ pointerEvents: "none" }} />
+          ))}
+        </>
+      )}
 
+      {/* Avatar bubbles */}
       {cluster.members.map((c, i) => {
         if (i >= positions.length) return null;
         const { x, y } = positions[i];
+        const isHovered = hoveredId === c.id;
+        const firstName = c.fullName?.split(" ")[0] ?? "?";
+        const nameW     = Math.max(36, firstName.length * 5 + 12);
+
         return (
-          <g key={c.id} transform={`translate(${x},${y})`} style={{ pointerEvents: "none" }}>
-            <title>{c.fullName ?? "?"}</title>
+          <g key={c.id} transform={`translate(${x},${y})`}
+            onMouseEnter={() => setHoveredId(c.id)}
+            onMouseLeave={() => setHoveredId(null)}>
             <defs>
               <clipPath id={`wm-clip-${c.id}`}><circle cx={0} cy={0} r={AVATAR_R} /></clipPath>
             </defs>
@@ -155,27 +175,51 @@ function ConcentricOverlay({ cluster, onClick }: {
                 <circle cx={0} cy={0} r={AVATAR_R} fill="#8aa0b8" />
                 <circle cx={0} cy={0} r={AVATAR_R} fill="none" stroke="white" strokeWidth={1.5} />
                 <text textAnchor="middle" dominantBaseline="middle"
-                  style={{ fontSize: "8px", fill: "white", fontWeight: "600", fontFamily: "sans-serif" }}>
+                  style={{ fontSize: "8px", fill: "white", fontWeight: "600",
+                    fontFamily: "sans-serif", pointerEvents: "none" }}>
                   {getInitials(c.fullName)}
                 </text>
               </>
+            )}
+            {/* Name pill — hover only */}
+            {isHovered && (
+              <g style={{ pointerEvents: "none" }}>
+                <rect x={-nameW / 2} y={-(AVATAR_R + 18)} width={nameW} height={13} rx={3}
+                  fill="rgba(26,39,68,0.88)" />
+                <text textAnchor="middle" dominantBaseline="middle" y={-(AVATAR_R + 12)}
+                  style={{ fontSize: "7px", fill: "white", fontWeight: "700", fontFamily: "sans-serif" }}>
+                  {firstName}
+                </text>
+              </g>
             )}
           </g>
         );
       })}
 
-      <circle r={count === 1 ? 6 : 9} fill="#2a3d6a" stroke="white" strokeWidth={1.5}
-        style={{ pointerEvents: "none" }} />
-      {count > 1 && (
-        <text textAnchor="middle" dominantBaseline="middle"
-          style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white", fontWeight: "700",
-            fontFamily: "sans-serif", pointerEvents: "none" }}>
-          {count}
-        </text>
+      {/* Center count dot — multi only */}
+      {!isSingle && (
+        <>
+          <circle r={9} fill="#2a3d6a" stroke="white" strokeWidth={1.5}
+            style={{ pointerEvents: "none" }} />
+          <text textAnchor="middle" dominantBaseline="middle"
+            style={{ fontSize: count >= 10 ? "5px" : "6px", fill: "white", fontWeight: "700",
+              fontFamily: "sans-serif", pointerEvents: "none" }}>
+            {count}
+          </text>
+        </>
       )}
 
-      {/* Transparent click-catcher rendered LAST so it sits on top of everything */}
-      <circle r={outerR + 10} fill="transparent" style={{ cursor: "pointer" }} onClick={onClick} />
+      {/* Location label — always visible when expanded */}
+      {locationLabel && (
+        <g style={{ pointerEvents: "none" }}>
+          <rect x={-locW / 2} y={locY} width={locW} height={12} rx={3}
+            fill="rgba(255,255,255,0.92)" stroke="#c8d8e8" strokeWidth={0.5} />
+          <text textAnchor="middle" dominantBaseline="middle" y={locY + 6}
+            style={{ fontSize: "6.5px", fill: "#2a3d6a", fontWeight: "600", fontFamily: "sans-serif" }}>
+            {locationLabel}
+          </text>
+        </g>
+      )}
     </g>
   );
 }
