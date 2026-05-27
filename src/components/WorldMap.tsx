@@ -295,6 +295,33 @@ export function WorldMap({
     setTimeout(() => setDidDrag(false), 50);
   }, []);
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    setDidDrag(false);
+    setDragStart({ x: t.clientX, y: t.clientY, center: [...center] as [number, number] });
+  }, [center]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!dragStart || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - dragStart.x;
+    const dy = t.clientY - dragStart.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) setDidDrag(true);
+
+    const cssWidth = containerRef.current?.clientWidth ?? 800;
+    const degPerPx = degPerSvgUnit(scale) * (800 / cssWidth);
+    setCenter([
+      dragStart.center[0] + (-dx * degPerPx),
+      Math.max(-75, Math.min(75, dragStart.center[1] + (dy * degPerPx))),
+    ]);
+  }, [dragStart, scale]);
+
+  const handleTouchEnd = useCallback(() => {
+    setDragStart(null);
+    setTimeout(() => setDidDrag(false), 50);
+  }, []);
+
   function handleClusterClick(cluster: Cluster) {
     if (didDrag) return;
     const anyActive = cluster.locationKeys.some((k) => activeCities.has(k));
@@ -309,11 +336,15 @@ export function WorldMap({
     <div
       ref={containerRef}
       className="bg-white rounded-2xl shadow-sm relative select-none"
-      style={{ overflow: "hidden", cursor: dragStart ? "grabbing" : "grab" }}
+      style={{ overflow: "hidden", cursor: dragStart ? "grabbing" : "grab", touchAction: "none" }}
       onMouseDown={handleMouseDown}
       onMouseMove={dragStart ? handleMouseMove : undefined}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={dragStart ? handleTouchMove : undefined}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       <ComposableMap
         width={800}
