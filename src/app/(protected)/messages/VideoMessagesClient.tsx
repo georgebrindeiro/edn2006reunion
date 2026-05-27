@@ -22,8 +22,10 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   const [seconds,   setSeconds]   = useState(0);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoUrl,  setVideoUrl]  = useState<string | null>(null);
-  const [error,     setError]     = useState("");
-  const [submitted, setSubmitted] = useState(hasExistingMessage);
+  const [error,          setError]          = useState("");
+  const [submitted,      setSubmitted]      = useState(hasExistingMessage);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPhase,    setUploadPhase]    = useState<"idle" | "uploading" | "saving">("idle");
 
   const livePreviewRef   = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -31,7 +33,10 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   const timerRef         = useRef<NodeJS.Timeout | null>(null);
   const streamRef        = useRef<MediaStream | null>(null);
 
-  const { startUpload, isUploading } = useUploadThing("videoMessage");
+  const { startUpload, isUploading } = useUploadThing("videoMessage", {
+    onUploadProgress: (p) => setUploadProgress(p),
+    onUploadError:    (err) => setError(`Falha no upload: ${err.message}`),
+  });
 
   useEffect(() => {
     return () => {
@@ -99,6 +104,8 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   async function handleSubmit() {
     if (!videoBlob) return;
     setError("");
+    setUploadProgress(0);
+    setUploadPhase("uploading");
 
     // Preserve original filename/mime for gallery uploads; use webm for recordings (Blob, not File)
     const isFileUpload = videoBlob instanceof File;
@@ -112,12 +119,18 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro desconhecido";
       setError(`Falha no upload: ${msg}`);
+      setUploadPhase("idle");
       return;
     }
 
     const videoUrl = res?.[0]?.ufsUrl ?? res?.[0]?.url;
-    if (!videoUrl) { setError("Upload falhou — arquivo pode ser muito grande ou formato não suportado. Tente novamente."); return; }
+    if (!videoUrl) {
+      setError("Upload falhou — arquivo pode ser muito grande ou formato não suportado. Tente novamente.");
+      setUploadPhase("idle");
+      return;
+    }
 
+    setUploadPhase("saving");
     const apiRes = await fetch("/api/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -131,9 +144,11 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
       setMode("idle");
       setVideoBlob(null);
       setVideoUrl(null);
+      setUploadPhase("idle");
     } else {
       const body = await apiRes.json().catch(() => ({}));
       setError(body.error ?? "Erro ao salvar mensagem.");
+      setUploadPhase("idle");
     }
   }
 
@@ -208,22 +223,53 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
 
           {mode === "preview" && videoUrl && (
             <div className="space-y-4">
-              <video src={videoUrl} controls className="w-full rounded-xl aspect-video bg-black" />
-              {isUploading && (
-                <div className="flex items-center gap-2 text-edn-steel text-sm font-body bg-edn-cloud rounded-lg px-4 py-3">
-                  <Loader2 size={15} className="animate-spin" />
-                  Enviando... isso pode demorar alguns segundos.
+              <div className="relative">
+                <video src={videoUrl} controls className="w-full rounded-xl aspect-video bg-black" />
+                {videoBlob && (
+                  <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-body rounded px-1.5 py-0.5">
+                    {(videoBlob.size / (1024 * 1024)).toFixed(1)} MB
+                  </span>
+                )}
+              </div>
+
+              {/* Upload progress */}
+              {uploadPhase === "uploading" && (
+                <div className="bg-edn-cloud rounded-lg px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-edn-steel text-sm font-body">
+                      <Loader2 size={14} className="animate-spin flex-shrink-0" />
+                      <span>{uploadProgress < 100 ? "Enviando vídeo..." : "Processando..."}</span>
+                    </div>
+                    <span className="text-edn-navy text-sm font-body font-semibold">{uploadProgress}%</span>
+                  </div>
+                  <div className="h-2 bg-white rounded-full overflow-hidden">
+                    <div className="h-full bg-edn-navy rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                  <p className="text-edn-gray text-[11px] font-body">
+                    Mantenha esta tela aberta até o envio terminar.
+                  </p>
                 </div>
               )}
+
+              {uploadPhase === "saving" && (
+                <div className="flex items-center gap-2 text-edn-steel text-sm font-body bg-edn-cloud rounded-lg px-4 py-3">
+                  <Loader2 size={14} className="animate-spin" />
+                  Salvando mensagem...
+                </div>
+              )}
+
               {error && <p className="text-red-500 text-xs font-body bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
               <div className="flex gap-3">
                 <button onClick={handleSubmit} disabled={isUploading}
                   className="flex-1 flex items-center justify-center gap-2 bg-edn-navy text-white py-3 rounded-xl text-sm font-body font-semibold hover:bg-edn-navy-mid transition-colors disabled:opacity-60">
                   {isUploading && <Loader2 size={14} className="animate-spin" />}
                   {isUploading ? "Enviando..." : "Enviar mensagem"}
                 </button>
-                <button onClick={() => { setMode("idle"); setVideoBlob(null); setVideoUrl(null); }}
-                  className="px-5 py-3 rounded-xl border border-edn-mist text-edn-gray text-sm font-body hover:bg-edn-cloud transition-colors">
+                <button onClick={() => { setMode("idle"); setVideoBlob(null); setVideoUrl(null); setUploadPhase("idle"); }}
+                  disabled={isUploading}
+                  className="px-5 py-3 rounded-xl border border-edn-mist text-edn-gray text-sm font-body hover:bg-edn-cloud transition-colors disabled:opacity-40">
                   Regravar
                 </button>
               </div>
