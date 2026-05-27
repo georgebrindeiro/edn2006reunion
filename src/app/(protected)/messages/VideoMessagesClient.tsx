@@ -12,6 +12,16 @@ interface VideoMessage {
 
 const MAX_SECONDS = 120;
 
+const MIME_MAP: Record<string, string> = {
+  mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime",
+  webm: "video/webm", avi: "video/x-msvideo", mkv: "video/x-matroska",
+  "3gp": "video/3gpp", ogv: "video/ogg",
+};
+function inferVideoMime(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  return MIME_MAP[ext] ?? "video/mp4";
+}
+
 export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   initialMessages: VideoMessage[];
   hasExistingMessage: boolean;
@@ -93,7 +103,13 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("video/")) { setError("Arquivo inválido. Selecione um vídeo (MP4, MOV, WebM, etc.)."); return; }
+    // Android Chrome often reports gallery videos with type="" or "application/octet-stream".
+    // The input already has accept="video/*" so trust the OS filter; only reject clearly non-video types.
+    const isVideo = file.type.startsWith("video/")
+      || file.type === ""
+      || file.type === "application/octet-stream"
+      || /\.(mp4|mov|webm|avi|mkv|m4v|3gp|ogv)$/i.test(file.name);
+    if (!isVideo) { setError("Arquivo inválido. Selecione um vídeo (MP4, MOV, WebM, etc.)."); return; }
     if (file.size > 256 * 1024 * 1024) { setError("Arquivo muito grande. Máximo 256 MB."); return; }
     setError("");
     setVideoBlob(file);
@@ -107,10 +123,11 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
     setUploadProgress(0);
     setUploadPhase("uploading");
 
-    // Preserve original filename/mime for gallery uploads; use webm for recordings (Blob, not File)
     const isFileUpload = videoBlob instanceof File;
     const fileName = isFileUpload ? (videoBlob as File).name : "message.webm";
-    const mimeType = isFileUpload ? (videoBlob as File).type : "video/webm";
+    // Android may give an empty type — infer from extension so UploadThing accepts the file
+    const rawType = isFileUpload ? (videoBlob as File).type : "video/webm";
+    const mimeType = rawType || inferVideoMime(fileName);
     const file = new File([videoBlob], fileName, { type: mimeType });
 
     let res;
