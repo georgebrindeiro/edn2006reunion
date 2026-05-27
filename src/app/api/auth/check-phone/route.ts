@@ -20,5 +20,9 @@ export async function POST(req: NextRequest) {
   const phone = normalizePhone(rawPhone);
   const user = await prisma.user.findUnique({ where: { phone } });
 
+  if (user?.deletedAt) {
+    return NextResponse.json({ valid: true, hasProfile: false, deleted: true });
+  }
+
   return NextResponse.json({ valid: true, hasProfile: !!user?.fullName });
 }

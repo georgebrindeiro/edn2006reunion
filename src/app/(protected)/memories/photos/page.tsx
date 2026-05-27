@@ -20,7 +20,7 @@ export default async function PhotosPage({
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     }),
     prisma.user.findMany({
-      where:   { fullName: { not: null } },
+      where:   { fullName: { not: null }, deletedAt: null },
       select:  { id: true, fullName: true, photoNow: true },
       orderBy: { fullName: "asc" },
     }),

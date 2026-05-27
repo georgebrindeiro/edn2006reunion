@@ -67,6 +67,12 @@ export function LoginForm() {
       return;
     }
 
+    if (data.deleted) {
+      setError("Perfil duplicado excluído. Tente entrar com o código do país (ex: +55 61 9xxxx-xxxx).");
+      setLoading(false);
+      return;
+    }
+
     if (data.hasProfile) {
       const result = await signIn("credentials", { phone, passphrase, redirect: false });
       if (result?.error) {
