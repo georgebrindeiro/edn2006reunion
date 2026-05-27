@@ -300,9 +300,7 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
 
           {mode === "preview" && videoUrl && (
             <div className="space-y-4">
-              <div className="bg-black rounded-xl overflow-hidden flex justify-center">
-                <video src={videoUrl} controls className="max-w-full max-h-[70vh]" />
-              </div>
+              <video src={videoUrl} controls className="w-full block rounded-xl" />
 
               {/* File diagnostic row */}
               {fileInfo && (
@@ -374,12 +372,10 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
             <p className="text-edn-gray font-body text-sm">Nenhuma mensagem ainda. Seja o primeiro!</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="columns-1 sm:columns-2 gap-3 space-y-3">
             {messages.map((m) => (
-              <div key={m.id} className="bg-white rounded-xl overflow-hidden shadow-sm">
-                <div className="bg-black flex justify-center">
-                  <video src={m.videoUrl} controls className="max-w-full max-h-[65vh]" />
-                </div>
+              <div key={m.id} className="break-inside-avoid bg-white rounded-xl overflow-hidden shadow-sm">
+                <video src={m.videoUrl} controls className="w-full block" />
                 <div className="p-3 flex items-center gap-2">
                   {m.user.photoNow ? (
                     <img src={m.user.photoNow} alt={m.user.fullName ?? ""} className="w-7 h-7 rounded-full object-cover" />
