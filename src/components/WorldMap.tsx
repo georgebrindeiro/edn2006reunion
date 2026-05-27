@@ -342,7 +342,7 @@ export function WorldMap({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onTouchStart={handleTouchStart}
-      onTouchMove={dragStart ? handleTouchMove : undefined}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
     >
