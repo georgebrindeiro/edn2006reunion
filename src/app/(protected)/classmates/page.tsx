@@ -7,7 +7,7 @@ export default async function ClassmatesPage() {
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
   const classmates = await prisma.user.findMany({
-    where: { fullName: { not: null } },
+    where: { fullName: { not: null }, deletedAt: null },
     select: {
       id: true,
       fullName: true,
