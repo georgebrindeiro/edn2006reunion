@@ -88,7 +88,9 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("video/")) { setError("Arquivo inválido. Selecione um vídeo (MP4, MOV, WebM, etc.)."); return; }
     if (file.size > 256 * 1024 * 1024) { setError("Arquivo muito grande. Máximo 256 MB."); return; }
+    setError("");
     setVideoBlob(file);
     setVideoUrl(URL.createObjectURL(file));
     setMode("preview");
@@ -98,11 +100,23 @@ export function VideoMessagesClient({ initialMessages, hasExistingMessage }: {
     if (!videoBlob) return;
     setError("");
 
-    const file = new File([videoBlob], "message.webm", { type: videoBlob.type });
-    const res = await startUpload([file]);
+    // Preserve original filename/mime for gallery uploads; use webm for recordings (Blob, not File)
+    const isFileUpload = videoBlob instanceof File;
+    const fileName = isFileUpload ? (videoBlob as File).name : "message.webm";
+    const mimeType = isFileUpload ? (videoBlob as File).type : "video/webm";
+    const file = new File([videoBlob], fileName, { type: mimeType });
+
+    let res;
+    try {
+      res = await startUpload([file]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      setError(`Falha no upload: ${msg}`);
+      return;
+    }
 
     const videoUrl = res?.[0]?.ufsUrl ?? res?.[0]?.url;
-    if (!videoUrl) { setError("Erro no upload. Tente novamente."); return; }
+    if (!videoUrl) { setError("Upload falhou — arquivo pode ser muito grande ou formato não suportado. Tente novamente."); return; }
 
     const apiRes = await fetch("/api/messages", {
       method: "POST",
