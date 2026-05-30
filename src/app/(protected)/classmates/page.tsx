@@ -57,7 +57,9 @@ export default async function ClassmatesPage() {
 
   return (
     <>
-    <BirthdayTopBar classmates={birthdayClassmates} />
+    <div className="-mx-4 -mt-8 mb-8">
+      <BirthdayTopBar classmates={birthdayClassmates} />
+    </div>
     <div className="space-y-6">
       <div>
         <p className="text-edn-steel text-xs font-body uppercase tracking-widest mb-1">
