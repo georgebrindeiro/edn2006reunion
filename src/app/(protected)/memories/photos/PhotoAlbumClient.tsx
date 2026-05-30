@@ -551,21 +551,21 @@ export function PhotoAlbumClient({
           </SortableContext>
         </DndContext>
       ) : (
-        <div className="columns-2 sm:columns-3 md:columns-4 gap-2 space-y-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
           {displayPhotos.map((photo, idx) => (
             <div key={photo.id} onClick={() => open(idx)}
-              className="break-inside-avoid cursor-pointer overflow-hidden rounded-xl group relative">
+              className="aspect-square cursor-pointer overflow-hidden rounded-xl group relative">
               {photo.mediaType === "VIDEO" ? (
                 <>
                   <video src={photo.mediaUrl} muted playsInline
-                    className="w-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
                     <Play size={28} className="text-white fill-white drop-shadow" />
                   </div>
                 </>
               ) : (
                 <img src={photo.mediaUrl} alt={photo.title ?? ""}
-                  className="w-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
               )}
               {photo.era && (
                 <div className="absolute top-1.5 left-1.5 bg-black/40 text-white text-[10px] font-body px-1.5 py-0.5 rounded-full">
