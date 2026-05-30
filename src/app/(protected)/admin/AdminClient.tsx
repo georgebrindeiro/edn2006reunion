@@ -124,20 +124,34 @@ export function AdminClient({ users, deletedUsers }: { users: AdminUserRow[]; de
                 <table className="w-full text-sm font-body min-w-[860px]">
                   <thead>
                     <tr className="border-b border-edn-mist text-left">
-                      {["Nome", "Cidade", "Última atividade", "Confirmação", "Prefs", "Convidados", "Pagamento", "Conteúdo", ""].map((h) => (
-                        <th key={h} className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide whitespace-nowrap">
+                      {["", "Nome", "Cidade", "Última atividade", "Prefs", "Convidados", "Pagamento", "Conteúdo", ""].map((h, i) => (
+                        <th key={i} className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide whitespace-nowrap">
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u) => (
+                    {users.map((u) => {
+                      const waLink = u.phone ? `https://wa.me/${u.phone.replace(/\D/g, "")}` : null;
+                      return (
                       <tr key={u.id} className="group border-b border-edn-cloud hover:bg-edn-cloud/50">
 
+                        <td className="py-2.5 px-2 text-center text-base leading-none">
+                          {!u.rsvp ? "⏳" : u.rsvp.isAttending ? "✅" : "❌"}
+                        </td>
+
                         <td className="py-2.5 px-2">
-                          <p className="font-medium text-edn-navy text-sm leading-tight">{u.fullName ?? "—"}</p>
-                          <p className="text-edn-gray text-xs">{u.phone ?? u.email ?? "—"}</p>
+                          {waLink ? (
+                            <a href={waLink} target="_blank" rel="noopener noreferrer" className="font-medium text-edn-navy text-sm leading-tight hover:text-green-700 transition-colors block">{u.fullName ?? "—"}</a>
+                          ) : (
+                            <p className="font-medium text-edn-navy text-sm leading-tight">{u.fullName ?? "—"}</p>
+                          )}
+                          {waLink ? (
+                            <a href={waLink} target="_blank" rel="noopener noreferrer" className="text-edn-gray text-xs hover:text-green-700 transition-colors">{u.phone}</a>
+                          ) : (
+                            <p className="text-edn-gray text-xs">{u.phone ?? u.email ?? "—"}</p>
+                          )}
                         </td>
 
                         <td className="py-2.5 px-2 text-edn-gray text-xs whitespace-nowrap">
@@ -152,16 +166,6 @@ export function AdminClient({ users, deletedUsers }: { users: AdminUserRow[]; de
                                 timeZone: "America/Sao_Paulo",
                               })
                             : "—"}
-                        </td>
-
-                        <td className="py-2.5 px-2">
-                          {!u.rsvp ? (
-                            <span className="text-xs text-yellow-600 bg-yellow-50 rounded-full px-2 py-0.5 whitespace-nowrap">Pendente</span>
-                          ) : u.rsvp.isAttending ? (
-                            <span className="text-xs text-green-700 bg-green-50 rounded-full px-2 py-0.5 whitespace-nowrap">✅ Vai</span>
-                          ) : (
-                            <span className="text-xs text-red-600 bg-red-50 rounded-full px-2 py-0.5 whitespace-nowrap">❌ Não vai</span>
-                          )}
                         </td>
 
                         <td className="py-2.5 px-2 text-edn-gray text-xs space-y-0.5">
@@ -253,7 +257,7 @@ export function AdminClient({ users, deletedUsers }: { users: AdminUserRow[]; de
                           )}
                         </td>
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
