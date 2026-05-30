@@ -124,7 +124,7 @@ export function AdminClient({ users, deletedUsers }: { users: AdminUserRow[]; de
                 <table className="w-full text-sm font-body min-w-[860px]">
                   <thead>
                     <tr className="border-b border-edn-mist text-left">
-                      {["", "Nome", "Cidade", "Última atividade", "Prefs", "Convidados", "Pagamento", "Conteúdo", ""].map((h, i) => (
+                      {["", "Nome", "Última atividade", "Prefs", "Convidados", "Pagamento", "Conteúdo", ""].map((h, i) => (
                         <th key={i} className="pb-2 px-2 text-xs text-edn-gray font-medium uppercase tracking-wide whitespace-nowrap">
                           {h}
                         </th>
@@ -147,15 +147,16 @@ export function AdminClient({ users, deletedUsers }: { users: AdminUserRow[]; de
                           ) : (
                             <p className="font-medium text-edn-navy text-sm leading-tight">{u.fullName ?? "—"}</p>
                           )}
+                          {(u.city || u.country) && (
+                            <p className="text-edn-gray text-xs leading-tight">
+                              {[u.city, u.state, u.country].filter(Boolean).join(", ")}
+                            </p>
+                          )}
                           {waLink ? (
                             <a href={waLink} target="_blank" rel="noopener noreferrer" className="text-edn-gray text-xs hover:text-green-700 transition-colors">{u.phone}</a>
                           ) : (
                             <p className="text-edn-gray text-xs">{u.phone ?? u.email ?? "—"}</p>
                           )}
-                        </td>
-
-                        <td className="py-2.5 px-2 text-edn-gray text-xs whitespace-nowrap">
-                          {u.city ? `${u.city}${u.state ? `, ${u.state}` : ""}` : "—"}
                         </td>
 
                         <td className="py-2.5 px-2 text-edn-gray text-xs whitespace-nowrap">
