@@ -1,6 +1,24 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ClassmatesView } from "@/components/ClassmatesView";
+import { BirthdayTopBar } from "@/components/BirthdayTopBar";
+
+function getThisWeekMonthDays(): Set<string> {
+  const now = new Date();
+  const dow = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+  monday.setHours(0, 0, 0, 0);
+  const days = new Set<string>();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    days.add(
+      `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    );
+  }
+  return days;
+}
 
 export default async function ClassmatesPage() {
   const session = await auth();
@@ -30,7 +48,16 @@ export default async function ClassmatesPage() {
     birthday: c.birthday ? c.birthday.toISOString().split("T")[0] : null,
   }));
 
+  const weekDays = getThisWeekMonthDays();
+  const birthdayClassmates = classmatesSerialized.filter((c) => {
+    if (!c.birthday) return false;
+    const [, month, day] = c.birthday.split("-");
+    return weekDays.has(`${month}-${day}`);
+  });
+
   return (
+    <>
+    <BirthdayTopBar classmates={birthdayClassmates} />
     <div className="space-y-6">
       <div>
         <p className="text-edn-steel text-xs font-body uppercase tracking-widest mb-1">
@@ -46,5 +73,6 @@ export default async function ClassmatesPage() {
 
       <ClassmatesView classmates={classmatesSerialized} isAdmin={isAdmin} />
     </div>
+    </>
   );
 }

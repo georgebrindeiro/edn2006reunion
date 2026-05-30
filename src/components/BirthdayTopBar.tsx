@@ -29,8 +29,7 @@ export function BirthdayTopBar({ classmates }: { classmates: BirthdayClassmate[]
 
   return (
     <>
-      <div className="bg-amber-50 border-b border-amber-200 py-2 px-4">
-        <div className="max-w-6xl mx-auto flex items-center gap-2 flex-wrap text-sm font-body text-amber-900">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl py-2 px-4 flex items-center gap-2 flex-wrap text-sm font-body text-amber-900">
           <Gift size={15} className="text-amber-500 shrink-0" />
           <span>
             {classmates.map((c, i) => (
@@ -48,7 +47,6 @@ export function BirthdayTopBar({ classmates }: { classmates: BirthdayClassmate[]
             {" "}
             {classmates.length === 1 ? "está fazendo" : "estão fazendo"} aniversário essa semana!
           </span>
-        </div>
       </div>
 
       {selectedIndex !== null && (
