@@ -17,7 +17,7 @@ export default async function PhotosPage({
         user: { select: { fullName: true } },
         tags: { include: { user: { select: { id: true, fullName: true, photoNow: true } } } },
       },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     }),
     prisma.user.findMany({
       where:   { fullName: { not: null }, deletedAt: null },

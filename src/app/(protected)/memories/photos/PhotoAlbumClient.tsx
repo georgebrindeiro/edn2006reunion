@@ -26,14 +26,14 @@ function sortedAll(photos: Photo[]): Photo[] {
     if (eraD !== 0) return eraD;
     const aO = a.sortOrder ?? Infinity, bO = b.sortOrder ?? Infinity;
     if (aO !== bO) return aO - bO;
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
 function sortedWithin(photos: Photo[]): Photo[] {
   return [...photos].sort((a, b) => {
     const aO = a.sortOrder ?? Infinity, bO = b.sortOrder ?? Infinity;
     if (aO !== bO) return aO - bO;
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
 
