@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Pencil, FolderOpen, Activity, Image as ImageIcon, Video, Trash2, RotateCcw, ChevronDown, ChevronUp, Loader2, Users, Baby, Wallet, Clock, HelpCircle, XCircle } from "lucide-react";
+import { Download, Pencil, FolderOpen, Activity, Image as ImageIcon, Video, Trash2, RotateCcw, ChevronDown, ChevronUp, Loader2, Users, Baby, Clock, XCircle, CheckCircle2, TrendingUp, Banknote } from "lucide-react";
 import { AdminUserModal, type AdminUserRow } from "./AdminUserModal";
 import { AdminPhotosPanel } from "./AdminPhotosPanel";
 import { AdminVideoPanel } from "./AdminVideoPanel";
@@ -24,12 +24,10 @@ const DRINK_LABEL: Record<string, string> = {
 type Tab = "users" | "photos" | "videos" | "logs";
 
 const METRIC_COLORS = {
-  green:  { card: "bg-green-50 border-green-200",  number: "text-green-700",  icon: "bg-green-100 text-green-600"  },
-  teal:   { card: "bg-teal-50 border-teal-200",    number: "text-teal-700",   icon: "bg-teal-100 text-teal-600"   },
-  indigo: { card: "bg-indigo-50 border-indigo-200", number: "text-indigo-700", icon: "bg-indigo-100 text-indigo-600" },
-  amber:  { card: "bg-amber-50 border-amber-200",  number: "text-amber-700",  icon: "bg-amber-100 text-amber-600"  },
-  gray:   { card: "bg-gray-50 border-gray-200",    number: "text-gray-600",   icon: "bg-gray-100 text-gray-500"   },
-  red:    { card: "bg-red-50 border-red-200",      number: "text-red-700",    icon: "bg-red-100 text-red-600"     },
+  green: { card: "bg-green-50 border-green-200", number: "text-green-700", icon: "bg-green-100 text-green-600" },
+  amber: { card: "bg-amber-50 border-amber-200", number: "text-amber-700", icon: "bg-amber-100 text-amber-600" },
+  red:   { card: "bg-red-50 border-red-200",     number: "text-red-700",   icon: "bg-red-100 text-red-600"    },
+  blue:  { card: "bg-blue-50 border-blue-200",   number: "text-blue-700",  icon: "bg-blue-100 text-blue-600"  },
 };
 
 export function AdminClient({ users, deletedUsers, eventConfig }: { users: AdminUserRow[]; deletedUsers: AdminUserRow[]; eventConfig: Pick<EventDetails, "costPerPerson" | "costPerPersonReduced" | "costPerChild"> }) {
@@ -45,32 +43,44 @@ export function AdminClient({ users, deletedUsers, eventConfig }: { users: Admin
   const userOptions = users.map((u) => ({ id: u.id, fullName: u.fullName ?? null }));
 
   // ── RSVP metrics ────────────────────────────────────────────────────────────
-  const attending = users.filter((u) => u.rsvp?.isAttending === true);
+  const attending    = users.filter((u) => u.rsvp?.isAttending === true);
+  const confirmedCnt = attending.length;
+  const noRsvpCnt    = users.filter((u) => !u.rsvp).length;
+  const notGoingCnt  = users.filter((u) => u.rsvp && !u.rsvp.isAttending).length;
+
   const confirmedAdults = attending.reduce((sum, u) => sum + 1 + (u.rsvp?.guestAdults.length ?? 0), 0);
   const confirmedKids   = attending.reduce((sum, u) => sum + (u.rsvp?.guestChildren.length ?? 0), 0);
-  const pendingPayment  = attending.filter((u) => !u.rsvp?.paymentConfirmed && !u.rsvp?.paymentProofUrl).length;
-  const noRsvp          = users.filter((u) => !u.rsvp).length;
-  const notGoing        = users.filter((u) => u.rsvp && !u.rsvp.isAttending).length;
 
-  let expectedRevenue = 0;
-  for (const u of attending) {
-    if (!u.rsvp) continue;
-    const reduced = (p: { foodPreference: string; drinkPreference: string }) =>
-      p.foodPreference === "NO_FOOD" && p.drinkPreference === "OWN_DRINKS";
-    expectedRevenue += reduced(u.rsvp) ? eventConfig.costPerPersonReduced : eventConfig.costPerPerson;
-    for (const g of u.rsvp.guestAdults) {
-      expectedRevenue += reduced(g) ? eventConfig.costPerPersonReduced : eventConfig.costPerPerson;
+  const isReduced = (p: { foodPreference: string; drinkPreference: string }) =>
+    p.foodPreference === "NO_FOOD" && p.drinkPreference === "OWN_DRINKS";
+
+  function calcRevenue(subset: typeof attending): number {
+    let total = 0;
+    for (const u of subset) {
+      if (!u.rsvp) continue;
+      total += isReduced(u.rsvp) ? eventConfig.costPerPersonReduced : eventConfig.costPerPerson;
+      for (const g of u.rsvp.guestAdults)
+        total += isReduced(g) ? eventConfig.costPerPersonReduced : eventConfig.costPerPerson;
+      total += u.rsvp.guestChildren.length * eventConfig.costPerChild;
     }
-    expectedRevenue += u.rsvp.guestChildren.length * eventConfig.costPerChild;
+    return total;
   }
 
-  const rsvpMetrics = [
-    { label: "Adultos confirmados",   value: confirmedAdults, display: String(confirmedAdults), color: "green"  as const, Icon: Users      },
-    { label: "Crianças confirmadas",  value: confirmedKids,   display: String(confirmedKids),   color: "teal"   as const, Icon: Baby       },
-    { label: "Receita esperada",      value: expectedRevenue, display: expectedRevenue.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 }), color: "indigo" as const, Icon: Wallet     },
-    { label: "Aguardando pagamento",  value: pendingPayment,  display: String(pendingPayment),  color: "amber"  as const, Icon: Clock      },
-    { label: "Sem confirmação",       value: noRsvp,          display: String(noRsvp),          color: "gray"   as const, Icon: HelpCircle },
-    { label: "Não vão",               value: notGoing,        display: String(notGoing),        color: "red"    as const, Icon: XCircle    },
+  const expectedRevenue  = calcRevenue(attending);
+  const confirmedRevenue = calcRevenue(attending.filter((u) => u.rsvp?.paymentConfirmed || u.rsvp?.paymentProofUrl));
+
+  const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+
+  const row1 = [
+    { label: "Confirmados",  display: String(confirmedCnt), color: "green" as const, Icon: CheckCircle2 },
+    { label: "Sem resposta", display: String(noRsvpCnt),    color: "amber" as const, Icon: Clock        },
+    { label: "Não vão",      display: String(notGoingCnt),  color: "red"   as const, Icon: XCircle      },
+  ];
+  const row2 = [
+    { label: "Adultos",            display: String(confirmedAdults),  Icon: Users      },
+    { label: "Crianças",           display: String(confirmedKids),    Icon: Baby       },
+    { label: "Receita esperada",   display: brl(expectedRevenue),     Icon: TrendingUp },
+    { label: "Receita confirmada", display: brl(confirmedRevenue),    Icon: Banknote   },
   ];
 
   function downloadCsv() {
@@ -123,21 +133,42 @@ export function AdminClient({ users, deletedUsers, eventConfig }: { users: Admin
   return (
     <>
       {/* ── RSVP metrics dashboard ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-        {rsvpMetrics.map(({ label, display, color, Icon }) => {
-          const c = METRIC_COLORS[color];
-          return (
-            <div key={label} className={`rounded-xl border ${c.card} p-4`}>
-              <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg ${c.icon} mb-3`}>
-                <Icon size={15} />
+      <div className="space-y-3 mb-4">
+        {/* Row 1: people status */}
+        <div className="grid grid-cols-3 gap-3">
+          {row1.map(({ label, display, color, Icon }) => {
+            const c = METRIC_COLORS[color];
+            return (
+              <div key={label} className={`rounded-xl border ${c.card} p-4`}>
+                <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg ${c.icon} mb-3`}>
+                  <Icon size={15} />
+                </div>
+                <div className={`text-3xl font-bold font-display ${c.number} leading-none mb-1`}>
+                  {display}
+                </div>
+                <div className="text-xs text-edn-gray font-body leading-tight">{label}</div>
               </div>
-              <div className={`text-2xl font-bold font-display ${c.number} leading-none mb-1`}>
-                {display}
+            );
+          })}
+        </div>
+
+        {/* Row 2: headcount & revenue */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {row2.map(({ label, display, Icon }) => {
+            const c = METRIC_COLORS.blue;
+            return (
+              <div key={label} className={`rounded-xl border ${c.card} p-4`}>
+                <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg ${c.icon} mb-3`}>
+                  <Icon size={15} />
+                </div>
+                <div className={`text-2xl font-bold font-display ${c.number} leading-none mb-1`}>
+                  {display}
+                </div>
+                <div className="text-xs text-edn-gray font-body leading-tight">{label}</div>
               </div>
-              <div className="text-xs text-edn-gray font-body leading-tight">{label}</div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
