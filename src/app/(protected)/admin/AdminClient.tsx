@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Pencil, FolderOpen, Activity, Image as ImageIcon, Video, Trash2, RotateCcw, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Download, Pencil, FolderOpen, Activity, Image as ImageIcon, Video, Trash2, RotateCcw, ChevronDown, ChevronUp, Loader2, Users, Baby, Wallet, Clock, HelpCircle, XCircle } from "lucide-react";
 import { AdminUserModal, type AdminUserRow } from "./AdminUserModal";
 import { AdminPhotosPanel } from "./AdminPhotosPanel";
 import { AdminVideoPanel } from "./AdminVideoPanel";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { UserContentModal } from "./UserContentModal";
+import type { EventDetails } from "@/types";
 
 const FOOD_LABEL: Record<string, string> = {
   BARBECUE:   "Churrasco",
@@ -22,7 +23,16 @@ const DRINK_LABEL: Record<string, string> = {
 
 type Tab = "users" | "photos" | "videos" | "logs";
 
-export function AdminClient({ users, deletedUsers }: { users: AdminUserRow[]; deletedUsers: AdminUserRow[] }) {
+const METRIC_COLORS = {
+  green:  { card: "bg-green-50 border-green-200",  number: "text-green-700",  icon: "bg-green-100 text-green-600"  },
+  teal:   { card: "bg-teal-50 border-teal-200",    number: "text-teal-700",   icon: "bg-teal-100 text-teal-600"   },
+  indigo: { card: "bg-indigo-50 border-indigo-200", number: "text-indigo-700", icon: "bg-indigo-100 text-indigo-600" },
+  amber:  { card: "bg-amber-50 border-amber-200",  number: "text-amber-700",  icon: "bg-amber-100 text-amber-600"  },
+  gray:   { card: "bg-gray-50 border-gray-200",    number: "text-gray-600",   icon: "bg-gray-100 text-gray-500"   },
+  red:    { card: "bg-red-50 border-red-200",      number: "text-red-700",    icon: "bg-red-100 text-red-600"     },
+};
+
+export function AdminClient({ users, deletedUsers, eventConfig }: { users: AdminUserRow[]; deletedUsers: AdminUserRow[]; eventConfig: Pick<EventDetails, "costPerPerson" | "costPerPersonReduced" | "costPerChild"> }) {
   const router = useRouter();
   const [tab,              setTab]              = useState<Tab>("users");
   const [editUser,         setEditUser]         = useState<AdminUserRow | null>(null);
@@ -33,6 +43,35 @@ export function AdminClient({ users, deletedUsers }: { users: AdminUserRow[]; de
   const [showDeleted,      setShowDeleted]      = useState(false);
 
   const userOptions = users.map((u) => ({ id: u.id, fullName: u.fullName ?? null }));
+
+  // ── RSVP metrics ────────────────────────────────────────────────────────────
+  const attending = users.filter((u) => u.rsvp?.isAttending === true);
+  const confirmedAdults = attending.reduce((sum, u) => sum + 1 + (u.rsvp?.guestAdults.length ?? 0), 0);
+  const confirmedKids   = attending.reduce((sum, u) => sum + (u.rsvp?.guestChildren.length ?? 0), 0);
+  const pendingPayment  = attending.filter((u) => !u.rsvp?.paymentConfirmed && !u.rsvp?.paymentProofUrl).length;
+  const noRsvp          = users.filter((u) => !u.rsvp).length;
+  const notGoing        = users.filter((u) => u.rsvp && !u.rsvp.isAttending).length;
+
+  let expectedRevenue = 0;
+  for (const u of attending) {
+    if (!u.rsvp) continue;
+    const reduced = (p: { foodPreference: string; drinkPreference: string }) =>
+      p.foodPreference === "NO_FOOD" && p.drinkPreference === "OWN_DRINKS";
+    expectedRevenue += reduced(u.rsvp) ? eventConfig.costPerPersonReduced : eventConfig.costPerPerson;
+    for (const g of u.rsvp.guestAdults) {
+      expectedRevenue += reduced(g) ? eventConfig.costPerPersonReduced : eventConfig.costPerPerson;
+    }
+    expectedRevenue += u.rsvp.guestChildren.length * eventConfig.costPerChild;
+  }
+
+  const rsvpMetrics = [
+    { label: "Adultos confirmados",   value: confirmedAdults, display: String(confirmedAdults), color: "green"  as const, Icon: Users      },
+    { label: "Crianças confirmadas",  value: confirmedKids,   display: String(confirmedKids),   color: "teal"   as const, Icon: Baby       },
+    { label: "Receita esperada",      value: expectedRevenue, display: expectedRevenue.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 }), color: "indigo" as const, Icon: Wallet     },
+    { label: "Aguardando pagamento",  value: pendingPayment,  display: String(pendingPayment),  color: "amber"  as const, Icon: Clock      },
+    { label: "Sem confirmação",       value: noRsvp,          display: String(noRsvp),          color: "gray"   as const, Icon: HelpCircle },
+    { label: "Não vão",               value: notGoing,        display: String(notGoing),        color: "red"    as const, Icon: XCircle    },
+  ];
 
   function downloadCsv() {
     const rows = [
@@ -83,6 +122,24 @@ export function AdminClient({ users, deletedUsers }: { users: AdminUserRow[]; de
 
   return (
     <>
+      {/* ── RSVP metrics dashboard ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        {rsvpMetrics.map(({ label, display, color, Icon }) => {
+          const c = METRIC_COLORS[color];
+          return (
+            <div key={label} className={`rounded-xl border ${c.card} p-4`}>
+              <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg ${c.icon} mb-3`}>
+                <Icon size={15} />
+              </div>
+              <div className={`text-2xl font-bold font-display ${c.number} leading-none mb-1`}>
+                {display}
+              </div>
+              <div className="text-xs text-edn-gray font-body leading-tight">{label}</div>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         {/* Tab bar */}
         <div className="flex border-b border-edn-mist">
