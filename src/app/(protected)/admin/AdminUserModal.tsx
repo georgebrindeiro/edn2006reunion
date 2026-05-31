@@ -256,101 +256,101 @@ export function AdminUserModal({ user, onClose }: { user: AdminUserRow; onClose:
           {/* ── RSVP ─────────────────────────────────────────────────── */}
           {tab === "rsvp" && (
             <>
-              {!user.rsvp ? (
-                <p className="text-xs text-edn-gray font-body text-center py-4">Este usuário não tem RSVP ainda.</p>
-              ) : (
+              {!user.rsvp && (
+                <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 font-body">
+                  Sem RSVP preenchido — você pode definir o status agora.
+                </p>
+              )}
+
+              <div>
+                <label className="text-xs text-edn-gray font-body font-medium block mb-2">Confirmação</label>
+                <div className="flex gap-2">
+                  {([true, false] as const).map((val) => (
+                    <button
+                      key={String(val)}
+                      type="button"
+                      onClick={() => setIsAttending(val)}
+                      className={`flex-1 py-2 rounded-lg border text-sm font-body transition-all ${
+                        isAttending === val
+                          ? "border-edn-navy bg-edn-navy text-white"
+                          : "border-edn-mist text-edn-navy hover:border-edn-steel"
+                      }`}
+                    >
+                      {val ? "✅ Vai" : "❌ Não vai"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {isAttending === true && (
                 <>
                   <div>
-                    <label className="text-xs text-edn-gray font-body font-medium block mb-2">Confirmação</label>
-                    <div className="flex gap-2">
-                      {([true, false] as const).map((val) => (
+                    <label className="text-xs text-edn-gray font-body font-medium block mb-2">Comida</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {["BARBECUE", "VEGETARIAN", "NO_FOOD"].map((val) => (
                         <button
-                          key={String(val)}
+                          key={val}
                           type="button"
-                          onClick={() => setIsAttending(val)}
-                          className={`flex-1 py-2 rounded-lg border text-sm font-body transition-all ${
-                            isAttending === val
+                          onClick={() => setFoodPref(val)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-body transition-all ${
+                            foodPref === val
                               ? "border-edn-navy bg-edn-navy text-white"
                               : "border-edn-mist text-edn-navy hover:border-edn-steel"
                           }`}
                         >
-                          {val ? "✅ Vai" : "❌ Não vai"}
+                          {FOOD_LABEL[val]}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {isAttending === true && (
-                    <>
-                      <div>
-                        <label className="text-xs text-edn-gray font-body font-medium block mb-2">Comida</label>
-                        <div className="flex gap-2 flex-wrap">
-                          {["BARBECUE", "VEGETARIAN", "NO_FOOD"].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setFoodPref(val)}
-                              className={`px-3 py-1.5 rounded-lg border text-xs font-body transition-all ${
-                                foodPref === val
-                                  ? "border-edn-navy bg-edn-navy text-white"
-                                  : "border-edn-mist text-edn-navy hover:border-edn-steel"
-                              }`}
-                            >
-                              {FOOD_LABEL[val]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                  <div>
+                    <label className="text-xs text-edn-gray font-body font-medium block mb-2">Bebida</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {["CHOPP", "NON_ALCOHOLIC", "OWN_DRINKS"].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setDrinkPref(val)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-body transition-all ${
+                            drinkPref === val
+                              ? "border-edn-navy bg-edn-navy text-white"
+                              : "border-edn-mist text-edn-navy hover:border-edn-steel"
+                          }`}
+                        >
+                          {DRINK_LABEL[val]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                      <div>
-                        <label className="text-xs text-edn-gray font-body font-medium block mb-2">Bebida</label>
-                        <div className="flex gap-2 flex-wrap">
-                          {["CHOPP", "NON_ALCOHOLIC", "OWN_DRINKS"].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setDrinkPref(val)}
-                              className={`px-3 py-1.5 rounded-lg border text-xs font-body transition-all ${
-                                drinkPref === val
-                                  ? "border-edn-navy bg-edn-navy text-white"
-                                  : "border-edn-mist text-edn-navy hover:border-edn-steel"
-                              }`}
-                            >
-                              {DRINK_LABEL[val]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {(user.rsvp.guestAdults.length > 0 || user.rsvp.guestChildren.length > 0) && (
-                        <div className="bg-edn-cloud/40 rounded-xl p-3 space-y-1.5">
-                          <p className="text-xs text-edn-gray font-body font-medium mb-2">Convidados</p>
-                          {user.rsvp.guestAdults.map((g, i) => (
-                            <p key={i} className="text-xs font-body text-edn-navy">
-                              👤 {g.fullName} · {FOOD_LABEL[g.foodPreference]} · {DRINK_LABEL[g.drinkPreference]}
-                            </p>
-                          ))}
-                          {user.rsvp.guestChildren.map((g, i) => (
-                            <p key={i} className="text-xs font-body text-edn-navy">
-                              👶 {g.fullName} ({g.age}a) · {FOOD_LABEL[g.foodPreference]}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </>
+                  {user.rsvp && (user.rsvp.guestAdults.length > 0 || user.rsvp.guestChildren.length > 0) && (
+                    <div className="bg-edn-cloud/40 rounded-xl p-3 space-y-1.5">
+                      <p className="text-xs text-edn-gray font-body font-medium mb-2">Convidados</p>
+                      {user.rsvp.guestAdults.map((g, i) => (
+                        <p key={i} className="text-xs font-body text-edn-navy">
+                          👤 {g.fullName} · {FOOD_LABEL[g.foodPreference]} · {DRINK_LABEL[g.drinkPreference]}
+                        </p>
+                      ))}
+                      {user.rsvp.guestChildren.map((g, i) => (
+                        <p key={i} className="text-xs font-body text-edn-navy">
+                          👶 {g.fullName} ({g.age}a) · {FOOD_LABEL[g.foodPreference]}
+                        </p>
+                      ))}
+                    </div>
                   )}
-
-                  {error && <p className="text-red-500 text-xs">{error}</p>}
-                  <button
-                    onClick={saveRsvp}
-                    disabled={saving}
-                    className="w-full py-2.5 rounded-xl bg-edn-navy text-white text-sm font-body font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
-                  >
-                    {saving && <Loader2 size={14} className="animate-spin" />}
-                    Salvar RSVP
-                  </button>
                 </>
               )}
+
+              {error && <p className="text-red-500 text-xs">{error}</p>}
+              <button
+                onClick={saveRsvp}
+                disabled={saving}
+                className="w-full py-2.5 rounded-xl bg-edn-navy text-white text-sm font-body font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                Salvar RSVP
+              </button>
             </>
           )}
 

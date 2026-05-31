@@ -21,6 +21,17 @@ export async function PATCH(
   if ("paymentConfirmed" in body) data.paymentConfirmed = body.paymentConfirmed;
   if ("paymentProofUrl"  in body) data.paymentProofUrl  = body.paymentProofUrl ?? null;
 
-  const rsvp = await prisma.rsvp.update({ where: { userId: id }, data });
+  const rsvp = await prisma.rsvp.upsert({
+    where:  { userId: id },
+    update: data,
+    create: {
+      userId:          id,
+      isAttending:     typeof data.isAttending === "boolean" ? data.isAttending : false,
+      foodPreference:  (data.foodPreference  as string | undefined) ?? "BARBECUE",
+      drinkPreference: (data.drinkPreference as string | undefined) ?? "NON_ALCOHOLIC",
+      ...(typeof data.paymentConfirmed === "boolean" ? { paymentConfirmed: data.paymentConfirmed } : {}),
+      ...("paymentProofUrl" in data ? { paymentProofUrl: data.paymentProofUrl as string | null } : {}),
+    },
+  });
   return NextResponse.json(rsvp);
 }
