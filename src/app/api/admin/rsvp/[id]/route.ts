@@ -25,12 +25,12 @@ export async function PATCH(
     where:  { userId: id },
     update: data,
     create: {
-      userId:          id,
-      isAttending:     typeof data.isAttending === "boolean" ? data.isAttending : false,
-      foodPreference:  (data.foodPreference  as string | undefined) ?? "BARBECUE",
-      drinkPreference: (data.drinkPreference as string | undefined) ?? "NON_ALCOHOLIC",
-      ...(typeof data.paymentConfirmed === "boolean" ? { paymentConfirmed: data.paymentConfirmed } : {}),
-      ...("paymentProofUrl" in data ? { paymentProofUrl: data.paymentProofUrl as string | null } : {}),
+      userId:           id,
+      isAttending:      typeof data.isAttending === "boolean" ? data.isAttending : false,
+      foodPreference:   (data.foodPreference  ?? "BARBECUE")     as "BARBECUE" | "VEGETARIAN" | "NO_FOOD",
+      drinkPreference:  (data.drinkPreference ?? "NON_ALCOHOLIC") as "CHOPP" | "NON_ALCOHOLIC" | "OWN_DRINKS",
+      paymentConfirmed: typeof data.paymentConfirmed === "boolean" ? data.paymentConfirmed : false,
+      paymentProofUrl:  "paymentProofUrl" in data ? (data.paymentProofUrl as string | null) : null,
     },
   });
   return NextResponse.json(rsvp);
