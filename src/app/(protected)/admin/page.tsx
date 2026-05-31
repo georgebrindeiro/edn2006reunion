@@ -66,6 +66,7 @@ export default async function AdminPage() {
       <AdminClient
         users={activeUsers.map(toRow) as any}
         deletedUsers={deletedUsers.map(toRow) as any}
+        eventConfig={eventConfig}
       />
       <EventConfigEditor initialConfig={eventConfig} />
     </div>
